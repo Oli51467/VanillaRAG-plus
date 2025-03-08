@@ -28,18 +28,25 @@ if [ ! -d "backend/venv" ]; then
   cd ..
 fi
 
+# 检查requirements.txt是否存在
+if [ ! -f "backend/requirements.txt" ]; then
+  echo -e "${RED}错误: 找不到backend/requirements.txt文件${NC}"
+  exit 1
+fi
+
 # 启动后端服务
 echo -e "${GREEN}启动后端服务...${NC}"
 cd backend
 source venv/bin/activate
-pip install -r requirements.txt
+pip install --upgrade -r requirements.txt
+echo -e "${GREEN}依赖项安装完成，启动后端服务...${NC}"
 python run.py &
 BACKEND_PID=$!
 cd ..
 
 # 等待后端服务启动
 echo -e "${YELLOW}等待后端服务启动...${NC}"
-sleep 5
+sleep 10
 
 # 启动前端服务
 echo -e "${GREEN}启动前端服务...${NC}"
