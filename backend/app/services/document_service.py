@@ -3,42 +3,40 @@ import uuid
 from typing import List, Dict, Any, Optional
 import docx2txt
 from pypdf import PdfReader
-import numpy as np
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.vectorstores import FAISS
 from langchain.schema.document import Document
 from langchain.docstore.document import Document as LangchainDocument
 from langchain.embeddings.base import Embeddings
+from sentence_transformers import SentenceTransformer
 
 from app.core.config import UPLOAD_DIR, VECTOR_DB_PATH, ALLOWED_EXTENSIONS
 
 
-class SimpleEmbeddings(Embeddings):
-    """简单的嵌入模型，用于替代OpenAI嵌入模型"""
+class M3EEmbeddings(Embeddings):
+    """使用M3E模型进行向量嵌入"""
     
-    def __init__(self, dimension=1536):
-        self.dimension = dimension
+    def __init__(self, model_name='moka-ai/m3e-base'):
+        self.model = SentenceTransformer('moka-ai/m3e-base')
     
     def embed_documents(self, texts: List[str]) -> List[List[float]]:
         """将文本转换为向量"""
-        # 简单的向量化方法：使用文本的哈希值生成向量
-        vectors = []
+        # 确保文本不为空
+        processed_texts = []
         for text in texts:
-            # 确保文本不为空
             if not text or len(text.strip()) == 0:
                 text = "空文本"
-            
-            # 使用文本的哈希值生成一个伪随机向量
-            # 使用固定的种子以确保相同文本生成相同的向量
-            seed_value = sum(ord(c) for c in text) % 2**32
-            np.random.seed(seed_value)
-            vector = np.random.uniform(-1, 1, self.dimension).astype('float32').tolist()
-            vectors.append(vector)
+            processed_texts.append(text)
+        
+        # 使用M3E模型进行向量化
+        vectors = self.model.encode(processed_texts, convert_to_numpy=True).tolist()
         return vectors
     
     def embed_query(self, text: str) -> List[float]:
         """将查询文本转换为向量"""
-        return self.embed_documents([text])[0]
+        if not text or len(text.strip()) == 0:
+            text = "空文本"
+        return self.model.encode(text, convert_to_numpy=True).tolist()
     
     # 添加__call__方法，使对象可调用
     def __call__(self, text: str) -> List[float]:
@@ -48,8 +46,8 @@ class SimpleEmbeddings(Embeddings):
 
 class DocumentService:
     def __init__(self):
-        # 使用简单的嵌入模型替代OpenAI嵌入模型
-        self.embeddings = SimpleEmbeddings()
+        # 使用M3E嵌入模型替代简单嵌入模型
+        self.embeddings = M3EEmbeddings()
         self.text_splitter = RecursiveCharacterTextSplitter(
             chunk_size=1000,
             chunk_overlap=200,

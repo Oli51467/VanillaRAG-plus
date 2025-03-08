@@ -9,3 +9,8 @@ numpy==1.24.3
 pandas==2.0.3
 python-multipart==0.0.6
 docx2txt
+sentence-transformers
+langchain-community==0.0.13
+torch>=2.0.0
+huggingface-hub==0.16.4
+langchain-openai==0.0.2
