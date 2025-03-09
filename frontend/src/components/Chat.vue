@@ -9,7 +9,10 @@
             <div class="chat-content">
                 <div class="chat-messages" ref="messagesContainer">
                     <!-- 欢迎消息 -->
-                    <div class="message system">
+                    <div class="message-row system">
+                        <div class="message-avatar">
+                            <el-avatar :size="36" :icon="ChatSquare" />
+                        </div>
                         <div class="message-content">
                             <p>👋 您好！我是您的文档助手，可以回答关于您上传文档的问题。</p>
                             <p>请先在"文档管理"页面上传文档，然后在这里提问。</p>
@@ -17,17 +20,27 @@
                     </div>
 
                     <!-- 消息列表 -->
-                    <div v-for="(message, index) in messages" :key="index" class="message" :class="message.role">
-                        <div class="message-avatar">
-                            <el-avatar :size="36" :icon="message.role === 'user' ? User : ChatSquare" />
-                        </div>
-                        <div class="message-content">
-                            <p v-html="formatMessage(message.content)"></p>
-                        </div>
+                    <div v-for="(message, index) in messages" :key="index" class="message-row" :class="message.role">
+                        <template v-if="message.role === 'assistant'">
+                            <div class="message-avatar">
+                                <el-avatar :size="36" :icon="ChatSquare" />
+                            </div>
+                            <div class="message-content">
+                                <p v-html="formatMessage(message.content)"></p>
+                            </div>
+                        </template>
+                        <template v-else>
+                            <div class="message-content">
+                                <p v-html="formatMessage(message.content)"></p>
+                            </div>
+                            <div class="message-avatar">
+                                <el-avatar :size="36" :icon="User" />
+                            </div>
+                        </template>
                     </div>
 
                     <!-- 加载中状态 -->
-                    <div v-if="loading" class="message assistant loading">
+                    <div v-if="loading" class="message-row assistant">
                         <div class="message-avatar">
                             <el-avatar :size="36" :icon="ChatSquare" />
                         </div>
@@ -40,24 +53,24 @@
                         </div>
                     </div>
                 </div>
+            </div>
 
-                <div class="chat-input-container">
-                    <div class="input-wrapper">
-                        <el-input v-model="userInput" type="textarea" :rows="1" placeholder="输入您的问题..." resize="none"
-                            :disabled="loading" @keydown.enter.prevent="sendMessage" ref="inputRef" autosize />
-                    </div>
-                    <div class="bottom-controls">
-                        <div class="model-selector">
-                            <div class="model-option active">
-                                <span>deepseek</span>
-                            </div>
-                            <div class="model-option">
-                                <span>Qwen2.5</span>
-                            </div>
+            <div class="chat-input-container">
+                <div class="input-wrapper">
+                    <el-input v-model="userInput" type="textarea" :rows="1" placeholder="输入您的问题..." resize="none"
+                        :disabled="loading" @keydown.enter.prevent="sendMessage" ref="inputRef" autosize />
+                </div>
+                <div class="bottom-controls">
+                    <div class="model-selector">
+                        <div class="model-option" :class="{ active: selectedModel === 1 }" @click="selectModel(1)">
+                            <span>DeepSeek</span>
                         </div>
-                        <el-button type="primary" :icon="loading ? Loading : Position"
-                            :disabled="loading || !userInput.trim()" @click="sendMessage" circle />
+                        <div class="model-option" :class="{ active: selectedModel === 2 }" @click="selectModel(2)">
+                            <span>Qwen</span>
+                        </div>
                     </div>
+                    <el-button type="primary" :icon="loading ? Loading : Position"
+                        :disabled="loading || !userInput.trim()" @click="sendMessage" circle />
                 </div>
             </div>
         </div>
@@ -68,6 +81,10 @@
 import { ref, onMounted, nextTick } from 'vue'
 import { ElMessage } from 'element-plus'
 import { User, ChatSquare, Position, Loading } from '@element-plus/icons-vue'
+import axios from 'axios'
+
+// 后端API基础URL
+const API_BASE_URL = 'http://localhost:8080/api/v1/rag';
 
 export default {
     name: 'Chat',
@@ -83,6 +100,12 @@ export default {
         const loading = ref(false)
         const messagesContainer = ref(null)
         const inputRef = ref(null)
+        const selectedModel = ref(1) // 默认使用DeepSeek模型 (1)
+
+        // 选择模型
+        const selectModel = (modelType) => {
+            selectedModel.value = modelType
+        }
 
         // 发送消息
         const sendMessage = async () => {
@@ -105,14 +128,37 @@ export default {
             // 设置加载状态
             loading.value = true
 
-            // 模拟API调用延迟
-            setTimeout(() => {
+            try {
+                // 调用后端RAG接口
+                const response = await axios.post(`${API_BASE_URL}/generate_prompt`, {
+                    query: message,
+                    model_type: selectedModel.value,
+                    top_k: 5
+                })
+
+                // 获取生成的prompt作为回复
+                const promptResponse = response.data.prompt
+
                 // 添加助手回复
                 messages.value.push({
                     role: 'assistant',
-                    content: '这是聊天功能的演示界面，实际的聊天功能将在下一轮对话中实现。您可以在"文档管理"页面上传和管理文档。'
+                    content: promptResponse
                 })
-
+            } catch (error) {
+                console.error('调用RAG接口失败:', error)
+                
+                // 添加错误消息
+                messages.value.push({
+                    role: 'assistant',
+                    content: '抱歉，我无法处理您的请求。请确保您已上传文档，并且服务器正常运行。'
+                })
+                
+                ElMessage({
+                    message: '获取回答失败，请稍后再试',
+                    type: 'error',
+                    duration: 3000
+                })
+            } finally {
                 // 取消加载状态
                 loading.value = false
 
@@ -120,7 +166,7 @@ export default {
                 nextTick(() => {
                     scrollToBottom()
                 })
-            }, 1000)
+            }
         }
 
         // 滚动到底部
@@ -159,6 +205,8 @@ export default {
             loading,
             messagesContainer,
             inputRef,
+            selectedModel,
+            selectModel,
             sendMessage,
             formatMessage,
             User,
@@ -183,6 +231,7 @@ export default {
     width: 100%;
     max-width: 900px;
     height: 100%;
+    padding: 0 16px;
 }
 
 .chat-header {
@@ -207,30 +256,45 @@ export default {
     display: flex;
     flex-direction: column;
     flex: 1;
-    height: calc(100% - 100px);
+    height: calc(100% - 220px); /* 减少高度，为输入框留出空间 */
     position: relative;
+    border-radius: 12px;
+    background-color: var(--secondary-bg);
+    margin-bottom: 20px; /* 添加底部间距 */
 }
 
 .chat-messages {
     flex: 1;
     overflow-y: auto;
-    padding: 16px 0;
+    padding: 16px;
     display: flex;
     flex-direction: column;
     gap: 24px;
-    max-height: calc(100vh - 350px);
-    padding-bottom: 80px;
 }
 
-.message {
+.message-row {
     display: flex;
-    gap: 16px;
-    max-width: 100%;
+    width: 100%;
     animation: fadeIn 0.3s ease;
+    gap: 16px;
+}
+
+.message-row.assistant {
+    justify-content: flex-start;
+}
+
+.message-row.user {
+    justify-content: flex-end;
+}
+
+.message-row.system {
+    justify-content: flex-start;
+    margin-bottom: 16px;
 }
 
 .message-avatar {
     flex-shrink: 0;
+    align-self: flex-start;
 }
 
 .message-content {
@@ -241,8 +305,11 @@ export default {
     line-height: 1.6;
     font-size: 15px;
     max-width: calc(100% - 60px);
+    word-break: break-word;
+    overflow-wrap: break-word;
     border: 1px solid var(--border-color);
     box-shadow: var(--shadow-sm);
+    margin-bottom: 4px;
 }
 
 .message-content p {
@@ -253,22 +320,19 @@ export default {
     margin-bottom: 0;
 }
 
-.message.user .message-content {
+.message-row.user .message-content {
     background-color: var(--accent-light);
     color: var(--text-primary);
     border: 1px solid var(--accent-color);
 }
 
-.message.system .message-content {
+.message-row.system .message-content {
     background-color: var(--hover-bg);
     color: var(--text-secondary);
     border: 1px solid var(--border-color);
-    margin-left: 52px;
-    margin-bottom: 16px;
 }
 
 .chat-input-container {
-    margin-top: 0;
     display: flex;
     flex-direction: column;
     gap: 8px;
@@ -276,14 +340,10 @@ export default {
     border: 1px solid var(--border-color);
     border-radius: 12px;
     padding: 12px 16px;
-    margin-bottom: 0;
     box-shadow: var(--shadow-sm);
     transition: all 0.2s ease;
-    position: absolute;
-    bottom: 20px;
-    left: 0;
-    right: 0;
-    z-index: 10;
+    width: 100%;
+    margin-bottom: 20px;
 }
 
 .chat-input-container:focus-within {

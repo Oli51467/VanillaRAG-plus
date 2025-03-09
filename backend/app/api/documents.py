@@ -2,15 +2,17 @@ import os
 import uuid
 import traceback
 from datetime import datetime
-from typing import List
-from fastapi import APIRouter, Depends, File, UploadFile, HTTPException, Form
+from typing import List, Dict, Any
+from fastapi import APIRouter, File, UploadFile, HTTPException, Form, BackgroundTasks
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel
+import time
 
-from app.services.document_service import DocumentService
+from app.services import get_document_service
 from app.models.document import DocumentResponse, DocumentList
 
 router = APIRouter()
-document_service = DocumentService()
+document_service = get_document_service()
 
 
 @router.post("/upload", response_model=DocumentResponse)

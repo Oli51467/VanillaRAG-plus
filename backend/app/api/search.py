@@ -2,10 +2,10 @@ from typing import List, Dict, Any
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from app.services.document_service import DocumentService
+from app.services import get_document_service
 
 router = APIRouter()
-document_service = DocumentService()
+document_service = get_document_service()
 
 
 class SearchQuery(BaseModel):

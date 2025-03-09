@@ -243,7 +243,20 @@ class DocumentService:
     def search_documents(self, query: str, top_k: int = 5) -> List[tuple]:
         """搜索文档"""
         # 使用向量数据库进行相似度搜索
-        docs_with_scores = self.vector_db.similarity_search_with_score(query, k=top_k)
+        # 多取几个结果，以便在过滤掉初始化文档后仍有足够的结果
+        extended_top_k = top_k + 1
+        docs_with_scores = self.vector_db.similarity_search_with_score(query, k=extended_top_k)
+        
+        # 过滤掉初始化文档
+        filtered_results = []
+        for doc, score in docs_with_scores:
+            # 检查是否是初始化文档
+            if "source" in doc.metadata and doc.metadata["source"] == "初始化":
+                continue
+            filtered_results.append((doc, score))
+        
+        # 确保不超过请求的top_k数量
+        filtered_results = filtered_results[:top_k]
         
         # 返回文档和分数
-        return docs_with_scores 
+        return filtered_results 
