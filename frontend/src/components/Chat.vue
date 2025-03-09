@@ -14,7 +14,7 @@
                     <div class="conversation-item-content" @click="switchConversation(conv.id)">
                         <div class="conversation-title">{{ conv.title }}</div>
                         <div class="conversation-right">
-                            <div class="conversation-time">{{ formatDate(conv.updated_at) }}</div>
+                            <div class="conversation-time">{{ formatDate(conv.created_at) }}</div>
                             <div class="conversation-actions">
                                 <el-dropdown trigger="click" @command="handleConversationAction($event, conv)"
                                     placement="right-start" popper-class="conversation-dropdown">
@@ -203,24 +203,32 @@ export default {
 
                 // 添加消息
                 const messageList = response.data.messages || []
-                messageList.forEach(msg => {
-                    let role = msg.role
-                    if (role === 'human') role = 'user'
-                    if (role === 'ai') role = 'assistant'
-
+                if (messageList.length === 0) {
+                    // 如果没有消息，添加一个系统欢迎消息
                     messages.value.push({
-                        role: role,
-                        content: msg.content
+                        role: 'system',
+                        content: '👋 您好！我是您的文档助手，可以回答关于您上传文档的问题。\n请先在"文档管理"页面上传文档，然后在这里提问。'
                     })
-                })
+                } else {
+                    messageList.forEach(msg => {
+                        let role = msg.role
+                        if (role === 'human') role = 'user'
+                        if (role === 'ai') role = 'assistant'
+
+                        messages.value.push({
+                            role: role,
+                            content: msg.content
+                        })
+                    })
+                }
 
                 // 滚动到底部
                 await nextTick()
                 scrollToBottom()
             } catch (error) {
-                console.error('获取对话消息失败:', error)
+                console.error('获取消息失败:', error)
                 ElMessage({
-                    message: '获取对话消息失败',
+                    message: '获取消息失败',
                     type: 'error',
                     duration: 3000
                 })
@@ -388,66 +396,22 @@ export default {
                     throw new Error('对话不存在')
                 }
 
-                // 尝试使用PATCH请求更新标题
-                try {
-                    await axios.patch(`${CONVERSATION_API_BASE_URL}${editingConversationId.value}`, {
-                        title: editingTitle.value
-                    })
-
-                    ElMessage({
-                        message: '标题已更新',
-                        type: 'success',
-                        duration: 3000
-                    })
-
-                    // 关闭对话框
-                    editDialogVisible.value = false
-
-                    // 刷新对话列表
-                    await loadConversations()
-                    return
-                } catch (patchError) {
-                    console.warn('PATCH请求失败，尝试使用POST请求:', patchError)
-                }
-
-                // 如果PATCH请求失败，尝试使用POST请求
-                // 创建一个新的对话对象，但保留原始ID
-                const response = await axios.post(`${CONVERSATION_API_BASE_URL}`, {
-                    title: editingTitle.value,
-                    model_type: conversation.model_type,
-                    metadata: conversation.metadata || {}
+                // 直接更新对话标题
+                await axios.patch(`${CONVERSATION_API_BASE_URL}${editingConversationId.value}`, {
+                    title: editingTitle.value
                 })
 
-                // 检查响应
-                if (response.data) {
-                    // 如果创建了新对话，则切换到新对话
-                    if (response.data.id !== editingConversationId.value) {
-                        // 删除旧对话
-                        try {
-                            await axios.delete(`${CONVERSATION_API_BASE_URL}${editingConversationId.value}`)
-                        } catch (deleteError) {
-                            console.warn('删除旧对话失败:', deleteError)
-                        }
+                ElMessage({
+                    message: '标题已更新',
+                    type: 'success',
+                    duration: 3000
+                })
 
-                        // 切换到新对话
-                        currentConversationId.value = response.data.id
-                        localStorage.setItem('currentConversationId', response.data.id)
-                    }
+                // 关闭对话框
+                editDialogVisible.value = false
 
-                    ElMessage({
-                        message: '标题已更新',
-                        type: 'success',
-                        duration: 3000
-                    })
-
-                    // 关闭对话框
-                    editDialogVisible.value = false
-
-                    // 刷新对话列表
-                    await loadConversations()
-                } else {
-                    throw new Error('更新失败，没有收到有效响应')
-                }
+                // 刷新对话列表
+                await loadConversations()
             } catch (error) {
                 console.error('更新标题失败:', error)
                 ElMessage({
@@ -666,14 +630,17 @@ export default {
 .chat-wrapper {
     display: flex;
     flex-direction: column;
-    width: calc(100% - 250px);
+    width: calc(80% - 20px);
     height: 100%;
     padding: 0 16px;
+    align-items: center;
 }
 
 .chat-header {
     margin-bottom: 20px;
     text-align: center;
+    width: 100%;
+    max-width: 800px;
 }
 
 .chat-header h2 {
@@ -700,6 +667,8 @@ export default {
     background-color: var(--secondary-bg);
     margin-bottom: 20px;
     /* 添加底部间距 */
+    width: 100%;
+    max-width: 800px;
 }
 
 .chat-messages {
@@ -709,6 +678,7 @@ export default {
     display: flex;
     flex-direction: column;
     gap: 24px;
+    width: 100%;
 }
 
 .message-row {
@@ -743,7 +713,7 @@ export default {
     color: var(--text-primary);
     line-height: 1.6;
     font-size: 15px;
-    max-width: calc(100% - 60px);
+    max-width: calc(100% - 80px);
     word-break: break-word;
     overflow-wrap: break-word;
     border: 1px solid var(--border-color);
@@ -781,8 +751,8 @@ export default {
     padding: 12px 16px;
     box-shadow: var(--shadow-sm);
     transition: all 0.2s ease;
-    width: 100%;
-    margin-bottom: 20px;
+    width: 98%;
+    max-width: 800px;
 }
 
 .chat-input-container:focus-within {

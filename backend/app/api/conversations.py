@@ -56,6 +56,11 @@ class ChatResponse(BaseModel):
     conversation_id: str = Field(..., description="对话ID")
     response: str = Field(..., description="AI回复")
 
+class ConversationUpdate(BaseModel):
+    model_config = ConfigDict(protected_namespaces=())
+    
+    title: str = Field(..., description="对话标题")
+
 # API端点
 @router.post("/", response_model=ConversationResponse)
 async def create_conversation(
@@ -64,11 +69,33 @@ async def create_conversation(
 ):
     """创建新对话"""
     service = ConversationService(db)
-    new_conversation = service.create_conversation(
-        title=conversation.title,
-        model_type=conversation.model_type,
-        metadata=conversation.metadata
-    )
+    
+    # 检查元数据中是否包含原始创建时间
+    original_created_at = None
+    if conversation.metadata and 'original_created_at' in conversation.metadata:
+        try:
+            from datetime import datetime
+            original_created_at = datetime.fromisoformat(conversation.metadata['original_created_at'].replace('Z', '+00:00'))
+            # 从元数据中移除original_created_at，因为它已经被使用
+            conversation.metadata.pop('original_created_at')
+        except (ValueError, TypeError) as e:
+            print(f"无法解析原始创建时间: {e}")
+    
+    # 使用适当的方法创建对话
+    if original_created_at:
+        new_conversation = service.create_conversation_with_timestamp(
+            title=conversation.title,
+            model_type=conversation.model_type,
+            metadata=conversation.metadata,
+            created_at=original_created_at
+        )
+    else:
+        new_conversation = service.create_conversation(
+            title=conversation.title,
+            model_type=conversation.model_type,
+            metadata=conversation.metadata
+        )
+    
     return ConversationResponse(**new_conversation.to_dict())
 
 @router.get("/", response_model=ConversationList)
@@ -188,4 +215,19 @@ async def chat(
     return ChatResponse(
         conversation_id=conversation_id,
         response=response
-    ) 
+    )
+
+@router.patch("/{conversation_id}", response_model=ConversationResponse)
+async def update_conversation(
+    conversation_id: str,
+    update_data: ConversationUpdate,
+    db: Session = Depends(get_db)
+):
+    """更新对话信息"""
+    service = ConversationService(db)
+    conversation = service.update_conversation_title(conversation_id, update_data.title)
+    
+    if not conversation:
+        raise HTTPException(status_code=404, detail="对话不存在")
+    
+    return ConversationResponse(**conversation.to_dict()) 

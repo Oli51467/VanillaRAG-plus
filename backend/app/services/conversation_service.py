@@ -2,6 +2,7 @@ from typing import List, Dict, Any, Optional
 from sqlalchemy.orm import Session
 from sqlalchemy import select, delete, desc, func
 import uuid
+from datetime import datetime
 
 from app.db.models import Conversation, ConversationMessage
 from app.services.chat_history import PostgresChatMessageHistory
@@ -70,7 +71,7 @@ class ConversationService:
         Returns:
             对话列表
         """
-        stmt = select(Conversation).order_by(desc(Conversation.updated_at)).limit(limit).offset(offset)
+        stmt = select(Conversation).order_by(desc(Conversation.created_at)).limit(limit).offset(offset)
         result = self.db.execute(stmt).scalars().all()
         return result
     
@@ -193,4 +194,55 @@ class ConversationService:
         # 添加AI回复
         chat_history.add_ai_message(prompt)
         
-        return prompt 
+        return prompt
+    
+    def create_conversation_with_timestamp(self, title: str, model_type: int = 1, metadata: Optional[Dict[str, Any]] = None, created_at: Optional[datetime] = None) -> Conversation:
+        """
+        创建新对话，并允许指定创建时间
+        
+        Args:
+            title: 对话标题
+            model_type: 模型类型 (1=DeepSeek, 2=Qwen)
+            metadata: 元数据
+            created_at: 创建时间，如果为None则使用当前时间
+            
+        Returns:
+            新创建的对话
+        """
+        conversation = Conversation(
+            id=uuid.uuid4(),
+            title=title,
+            model_type=model_type,
+            meta_data=metadata or {}
+        )
+        
+        if created_at:
+            conversation.created_at = created_at
+            conversation.updated_at = created_at
+        
+        self.db.add(conversation)
+        self.db.commit()
+        self.db.refresh(conversation)
+        
+        return conversation
+    
+    def update_conversation_title(self, conversation_id: str, title: str) -> Optional[Conversation]:
+        """
+        更新对话标题
+        
+        Args:
+            conversation_id: 对话ID
+            title: 新标题
+            
+        Returns:
+            更新后的对话，如果不存在则返回None
+        """
+        conversation = self.get_conversation(conversation_id)
+        if not conversation:
+            return None
+            
+        conversation.title = title
+        self.db.commit()
+        self.db.refresh(conversation)
+        
+        return conversation 

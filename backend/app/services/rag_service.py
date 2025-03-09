@@ -54,14 +54,8 @@ class RAGService:
         context = ""
         
         for i, (doc, score) in enumerate(docs_with_scores):
-            # 添加文档标题（如果可用）
-            source = doc.metadata.get("source", "未知来源")
-            file_name = doc.metadata.get("file_name", "未知文件")
-            
             # 格式化文档内容
-            context += f"[文档 {i+1}] 来源: {source}, 文件: {file_name}\n"
             context += f"内容: {doc.page_content}\n"
-            context += f"相关度得分: {score:.4f}\n\n"
         
         return context
     
@@ -88,36 +82,7 @@ class RAGService:
         context = self.format_context_for_llm(docs_with_scores)
         
         # 根据不同的模型类型构建不同的提示
-        prompt_template = ""
-        
-        if model_type == 1:  # DeepSeek
-            prompt_template = f"""请回答下面的问题。请使用以下提供的文档内容来帮助回答，如果文档内容不足以回答问题，请使用您自己的知识。
+        prompt_template = f"""请回答下面的问题。请使用以下提供的文档内容来帮助回答，如果文档内容不足以回答问题，请使用您自己的知识。相关文档:{context}用户问题: {query}。请根据以上信息提供详细回答:"""
 
-相关文档:
-{context}
-
-用户问题: {query}
-
-请根据以上信息提供详细回答:"""
-            
-        elif model_type == 2:  # Qwen
-            prompt_template = f"""我将提供一些相关文档的内容，请基于这些内容回答我随后的问题。如果文档内容不足以回答问题，请使用您自己的知识。
-
-相关文档内容:
-{context}
-
-问题: {query}
-
-回答:"""
-            
-        else:
-            # 默认提示模板
-            prompt_template = f"""以下是一些可能与问题相关的文档内容:
-
-{context}
-
-问题: {query}
-
-请基于以上信息提供回答:"""
             
         return prompt_template 

@@ -1,9 +1,5 @@
 <template>
     <div class="document-management">
-        <div class="section-header">
-            <h2>文档库</h2>
-            <p class="section-description">上传、管理和检索您的文档</p>
-        </div>
 
         <!-- 上传区域 -->
         <el-card class="upload-card">
