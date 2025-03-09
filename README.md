@@ -37,6 +37,7 @@
 - LangChain: 大语言模型应用框架
 - Faiss: 高效向量检索库
 - PyPDF, docx2txt: 文档解析库
+- PostgreSQL: 关系型数据库，用于存储对话历史和文档元数据
 
 ### 前端
 - Vue 3: 渐进式JavaScript框架
@@ -48,8 +49,54 @@
 - 文档上传：支持PDF、TXT、DOCX格式
 - 文档管理：查看和删除已上传的文档
 - 文档向量化：自动解析文档内容并存储到Faiss向量数据库
+- 对话历史：保存与文档的交互对话历史
 
 ## 安装与运行
+
+### 数据库
+
+1. 安装PostgreSQL
+   ```
+   # Ubuntu/Debian
+   sudo apt update
+   sudo apt install postgresql postgresql-contrib
+
+   # macOS (使用Homebrew)
+   brew install postgresql
+
+   # Windows
+   # 从 https://www.postgresql.org/download/windows/ 下载安装包
+   ```
+
+2. 启动PostgreSQL服务
+   ```
+   # Ubuntu/Debian
+   sudo systemctl start postgresql
+   sudo systemctl enable postgresql
+
+   # macOS
+   brew services start postgresql
+
+   # Windows
+   # 通过安装程序自动启动服务
+   ```
+
+3. 创建数据库和用户
+   ```
+   sudo -u postgres psql
+   
+   # 在PostgreSQL命令行中执行：
+   CREATE DATABASE docmanager;
+   CREATE USER docuser WITH ENCRYPTED PASSWORD 'yourpassword';
+   GRANT ALL PRIVILEGES ON DATABASE docmanager TO docuser;
+   \q
+   ```
+
+4. 配置数据库连接
+   编辑`.env`文件，添加数据库连接信息
+   ```
+   DATABASE_URL=postgresql://docuser:yourpassword@localhost/docmanager
+   ```
 
 ### 后端
 
@@ -76,7 +123,12 @@
    OPENAI_API_KEY=your_openai_api_key
    ```
 
-5. 启动服务
+5. 初始化数据库
+   ```
+   python -m app.db.init_db
+   ```
+
+6. 启动服务
    ```
    python run.py
    ```
