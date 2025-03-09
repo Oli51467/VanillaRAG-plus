@@ -517,7 +517,7 @@ export default {
 }
 
 .sidebar {
-    width: 250px;
+    width: 280px;
     height: 100%;
     background-color: var(--secondary-bg);
     border-right: 1px solid var(--border-color);
@@ -535,7 +535,7 @@ export default {
 
 .sidebar-header h3 {
     margin: 0;
-    font-size: 16px;
+    font-size: 17px;
     font-weight: 600;
     color: var(--text-primary);
 }
@@ -584,13 +584,13 @@ export default {
 }
 
 .conversation-title {
-    font-size: 14px;
+    font-size: 15px;
     font-weight: 500;
     color: var(--text-primary);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    max-width: 160px;
+    max-width: 180px;
     flex: 1;
     min-width: 0;
 }

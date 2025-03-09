@@ -1,8 +1,8 @@
 <template>
   <div class="app-container">
     <el-container>
-      <el-header height="64px">
-        <div class="header-content">
+      <el-aside width="180px">
+        <div class="aside-content">
           <div class="nav-menu">
             <div class="nav-item" :class="{ active: activeIndex === '2' }" @click="handleSelect('2')">
               <el-icon><chat-dot-round /></el-icon>
@@ -16,7 +16,7 @@
             </div>
           </div>
         </div>
-      </el-header>
+      </el-aside>
       <el-main>
         <transition name="fade" mode="out-in">
           <document-management v-if="activeIndex === '1'" />
@@ -95,33 +95,29 @@ body {
   height: 100%;
 }
 
-.el-header {
+.el-aside {
   background-color: var(--primary-bg);
-  border-bottom: 1px solid var(--border-color);
-  padding: 0 24px;
-  position: relative;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  border-right: 1px solid var(--border-color);
+  box-shadow: 1px 0 3px rgba(0, 0, 0, 0.1);
 }
 
-.header-content {
-  display: flex;
-  justify-content: center;
-  align-items: center;
+.aside-content {
+  padding: 24px 0;
   height: 100%;
-  width: 100%;
 }
 
 .nav-menu {
   display: flex;
-  gap: 32px;
-  justify-content: center;
+  flex-direction: column;
+  gap: 16px;
+  padding: 0 16px;
 }
 
 .nav-item {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 16px;
+  gap: 12px;
+  padding: 12px 16px;
   border-radius: 8px;
   cursor: pointer;
   transition: all 0.2s ease;
