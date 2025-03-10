@@ -116,10 +116,10 @@
                     </div>
                     <div class="bottom-controls">
                         <div class="model-selector">
-                            <div class="model-option" :class="{ active: selectedModel === 1 }" @click="selectModel(1)">
+                            <div class="model-option" :class="{ active: selectedModel === 'deepseek-chat' }" @click="selectModel('deepseek-chat')">
                                 <span>DeepSeek</span>
                             </div>
-                            <div class="model-option" :class="{ active: selectedModel === 2 }" @click="selectModel(2)">
+                            <div class="model-option" :class="{ active: selectedModel === 'Qwen/QwQ-32B' }" @click="selectModel('Qwen/QwQ-32B')">
                                 <span>Qwen</span>
                             </div>
                         </div>
@@ -159,7 +159,7 @@ export default {
         const loading = ref(false)
         const messagesContainer = ref(null)
         const inputRef = ref(null)
-        const selectedModel = ref(1) // 默认使用DeepSeek模型 (1)
+        const selectedModel = ref('Qwen/QwQ-32B') // 默认使用Qwen模型
         const currentConversationId = ref(localStorage.getItem('currentConversationId') || null)
         const conversations = ref([])
         const loadingConversations = ref(false)
@@ -168,8 +168,8 @@ export default {
         const editingConversationId = ref(null)
 
         // 选择模型
-        const selectModel = (modelType) => {
-            selectedModel.value = modelType
+        const selectModel = (modelName) => {
+            selectedModel.value = modelName
         }
 
         // 加载对话列表
@@ -262,13 +262,13 @@ export default {
                 // 调用后端RAG聊天接口
                 const response = await axios.post(`${RAG_API_BASE_URL}chat`, {
                     query: message,
-                    model_type: selectedModel.value,
+                    model: selectedModel.value,
                     top_k: 5,
                     conversation_id: currentConversationId.value
                 })
 
-                // 获取生成的prompt作为回复
-                const promptResponse = response.data.prompt
+                // 获取大模型的回复
+                const modelResponse = response.data.response
 
                 // 更新当前对话ID
                 currentConversationId.value = response.data.conversation_id
@@ -279,7 +279,7 @@ export default {
                 // 添加助手回复
                 messages.value.push({
                     role: 'assistant',
-                    content: promptResponse
+                    content: modelResponse
                 })
 
                 // 刷新对话列表

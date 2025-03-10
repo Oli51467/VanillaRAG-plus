@@ -122,10 +122,10 @@ export default {
                 return false
             }
 
-            const isLt10M = file.size / 1024 / 1024 < 10
+            const isLt10M = file.size / 1024 / 1024 < 100
             if (!isLt10M) {
                 ElMessage({
-                    message: '文件大小不能超过10MB!',
+                    message: '文件大小不能超过100MB!',
                     type: 'error',
                     duration: 3000
                 })

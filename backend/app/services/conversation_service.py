@@ -21,13 +21,12 @@ class ConversationService:
         self.db = db
         self.document_service = get_document_service()
     
-    def create_conversation(self, title: str, model_type: int = 1, metadata: Optional[Dict[str, Any]] = None) -> Conversation:
+    def create_conversation(self, title: str, metadata: Optional[Dict[str, Any]] = None) -> Conversation:
         """
         创建新对话
         
         Args:
             title: 对话标题
-            model_type: 模型类型 (1=DeepSeek, 2=Qwen)
             metadata: 元数据
             
         Returns:
@@ -36,7 +35,6 @@ class ConversationService:
         conversation = Conversation(
             id=uuid.uuid4(),
             title=title,
-            model_type=model_type,
             meta_data=metadata or {}
         )
         
@@ -176,8 +174,7 @@ class ConversationService:
         conversation = self.get_conversation(conversation_id)
         if not conversation:
             conversation = self.create_conversation(
-                title=user_message[:50] + "..." if len(user_message) > 50 else user_message,
-                model_type=model_type
+                title=user_message[:50] + "..." if len(user_message) > 50 else user_message
             )
         
         # 获取聊天历史
@@ -196,13 +193,12 @@ class ConversationService:
         
         return prompt
     
-    def create_conversation_with_timestamp(self, title: str, model_type: int = 1, metadata: Optional[Dict[str, Any]] = None, created_at: Optional[datetime] = None) -> Conversation:
+    def create_conversation_with_timestamp(self, title: str, metadata: Optional[Dict[str, Any]] = None, created_at: Optional[datetime] = None) -> Conversation:
         """
         创建新对话，并允许指定创建时间
         
         Args:
             title: 对话标题
-            model_type: 模型类型 (1=DeepSeek, 2=Qwen)
             metadata: 元数据
             created_at: 创建时间，如果为None则使用当前时间
             
@@ -212,7 +208,6 @@ class ConversationService:
         conversation = Conversation(
             id=uuid.uuid4(),
             title=title,
-            model_type=model_type,
             meta_data=metadata or {}
         )
         

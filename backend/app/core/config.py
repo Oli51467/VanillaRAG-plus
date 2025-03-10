@@ -29,4 +29,4 @@ CORS_ORIGINS = [
 ]
 
 # 允许上传的文件类型
-ALLOWED_EXTENSIONS = {"pdf", "txt", "docx"} 
+ALLOWED_EXTENSIONS = {"pdf", "txt", "docx"}
