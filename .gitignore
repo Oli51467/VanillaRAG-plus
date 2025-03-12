@@ -71,6 +71,8 @@ backend/vector_db/*
 *.log
 logs/
 .env
+model_weight/
+milvus/
 
 # 构建输出
 frontend/dist/

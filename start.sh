@@ -37,7 +37,7 @@ fi
 # 启动后端服务
 echo -e "${GREEN}启动后端服务...${NC}"
 cd backend
-source venv/bin/activate
+pip uninstall pyzt
 pip install --upgrade -r requirements.txt
 echo -e "${GREEN}依赖项安装完成，启动后端服务...${NC}"
 python run.py &

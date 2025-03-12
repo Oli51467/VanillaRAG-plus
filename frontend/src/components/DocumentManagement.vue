@@ -33,7 +33,7 @@
                     <el-table-column label="文档信息" min-width="300">
                         <template #default="scope">
                             <div class="document-info">
-                                <el-icon class="document-icon">
+                                <el-icon class="document-icon" :class="getIconColorClass(scope.row.file_type)">
                                     <document />
                                 </el-icon>
                                 <div class="document-details">
@@ -105,6 +105,22 @@ export default {
                 })
             } finally {
                 loading.value = false
+            }
+        }
+
+        // 根据文件类型获取图标颜色类名
+        const getIconColorClass = (fileType) => {
+            if (!fileType) return '';
+            
+            const type = fileType.toLowerCase();
+            if (type === 'pdf') {
+                return 'pdf-icon';
+            } else if (type === 'doc' || type === 'docx') {
+                return 'doc-icon';
+            } else if (type === 'txt') {
+                return 'txt-icon';
+            } else {
+                return '';
             }
         }
 
@@ -207,14 +223,15 @@ export default {
             documents,
             loading,
             fetchDocuments,
-            beforeUpload,
             handleUploadSuccess,
             handleUploadError,
+            beforeUpload,
             handleDelete,
             formatFileSize,
             formatDate,
-            Delete,
-            Refresh
+            getIconColorClass,
+            Refresh,
+            Delete
         }
     }
 }
@@ -428,5 +445,18 @@ export default {
     background-color: transparent;
     border: none;
     padding: 0;
+}
+
+/* 添加新的图标颜色样式 */
+.pdf-icon {
+    color: #ff4d4f; /* 红色 */
+}
+
+.doc-icon {
+    color: #1890ff; /* 蓝色 */
+}
+
+.txt-icon {
+    color: #909399; /* 灰色 */
 }
 </style>
