@@ -1,14 +1,42 @@
 import traceback
 from datetime import datetime
-from typing import List, Dict, Any
+from typing import List, Optional
 from fastapi import APIRouter, File, UploadFile, HTTPException, Form, BackgroundTasks, Depends
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from service.document_service import DocumentService
-from models.document import DocumentResponse, DocumentList
 from db.database import get_db
+from pydantic import BaseModel
 
 router = APIRouter()
+
+class DocumentBase(BaseModel):
+    """文档基本信息"""
+    file_name: str
+    file_size: int
+    upload_time: datetime
+
+
+class DocumentCreate(DocumentBase):
+    """创建文档的请求模型"""
+    file_path: str
+    id: str
+
+
+class DocumentResponse(DocumentBase):
+    """文档响应模型"""
+    id: str
+    file_type: str  # 添加文件类型字段
+    file_path: Optional[str] = None
+    
+    class Config:
+        from_attributes = True  # 允许直接从ORM模型转换
+
+
+class DocumentList(BaseModel):
+    """文档列表响应模型"""
+    documents: List[DocumentResponse] 
+
 
 @router.post("/upload", response_model=DocumentResponse)
 async def upload_document(file: UploadFile = File(...), db: Session = Depends(get_db)):

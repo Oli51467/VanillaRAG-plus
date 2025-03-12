@@ -9,7 +9,7 @@ model_repos = [
     "BAAI/bge-reranker-v2-m3"
 ]
 
-base_dir = "../model_weight"
+base_dir = "./model_weight"
 
 for repo_id in model_repos:
     model_name = repo_id.split("/")[-1]

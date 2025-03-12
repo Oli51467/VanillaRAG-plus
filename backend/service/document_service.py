@@ -1,14 +1,12 @@
 # -*- coding: utf-8 -*-
 import os
 import uuid
-import random
 from datetime import datetime
 
-from typing import List, Dict, Any
+from typing import List
 from sqlalchemy.orm import Session
 from sqlalchemy import select, delete, desc
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-
 
 import docx2txt
 from pypdf import PdfReader

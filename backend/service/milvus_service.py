@@ -1,7 +1,5 @@
 # -*- coding: utf-8 -*-
 
-import random
-
 from typing import List
 from pymilvus import MilvusClient, MilvusException, FieldSchema, CollectionSchema, DataType, Collection
 from pymilvus.model.hybrid import BGEM3EmbeddingFunction

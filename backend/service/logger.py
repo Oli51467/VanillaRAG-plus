@@ -2,7 +2,7 @@
 
 import logging
 import os
-
+from pathlib import Path
 
 def setup_logging(log_path):
     logger = logging.getLogger('rag_server')
@@ -20,6 +20,8 @@ def setup_logging(log_path):
     return logger
 
 
-current_dir = os.path.dirname(os.path.abspath(__file__))
-log_path = os.path.join(current_dir, 'rag_server.log')
-logger = setup_logging(log_path)
+BASE_DIR = Path(__file__).resolve().parent.parent
+LOGGING_DIR = os.path.join(BASE_DIR, 'logs')
+os.makedirs(LOGGING_DIR, exist_ok=True)
+LOGGING_PATH = os.path.join(LOGGING_DIR, 'server.log')
+logger = setup_logging(LOGGING_PATH)
