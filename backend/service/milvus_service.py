@@ -4,7 +4,7 @@ from typing import List
 from pymilvus import MilvusClient, MilvusException, FieldSchema, CollectionSchema, DataType, Collection, AnnSearchRequest, WeightedRanker
 from pymilvus.model.hybrid import BGEM3EmbeddingFunction
 from pymilvus.model.reranker import BGERerankFunction
-from service.logger import logger
+from utils.logger import logger
 from service.config import Config
 
 

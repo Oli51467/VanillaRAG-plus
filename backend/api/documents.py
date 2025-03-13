@@ -7,29 +7,24 @@ from sqlalchemy.orm import Session
 from service.document_service import DocumentService
 from db.database import get_db
 from pydantic import BaseModel
-from service.logger import logger
+from utils.logger import logger
+
 
 router = APIRouter()
 
 class DocumentBase(BaseModel):
-    """文档基本信息"""
     file_name: str
     file_size: int
     upload_time: datetime
 
-
 class DocumentCreate(DocumentBase):
-    """创建文档的请求模型"""
     file_path: str
     id: str
 
-
 class DocumentResponse(DocumentBase):
-    """文档响应模型"""
     id: str
     file_type: str  # 添加文件类型字段
     file_path: Optional[str] = None
-    
     class Config:
         from_attributes = True  # 允许直接从ORM模型转换
 
@@ -48,6 +43,8 @@ async def upload_document(file: UploadFile = File(...), db: Session = Depends(ge
     
      # 处理文档
     document = document_service.process_document(file)
+
+    del document_service
         
     # 返回文档信息
     return {
@@ -62,7 +59,8 @@ async def upload_document(file: UploadFile = File(...), db: Session = Depends(ge
 @router.get("/list", response_model=DocumentList)
 async def list_documents(db: Session = Depends(get_db)):
     try:
-        document_list = DocumentService(db).get_all_documents()     
+        document_service = DocumentService(db)
+        document_list = document_service.get_all_documents()     
         
         # 将SQLAlchemy模型对象转换为字典
         documents = []
@@ -75,7 +73,7 @@ async def list_documents(db: Session = Depends(get_db)):
                 "file_size": doc.file_size,
                 "file_type": doc.file_type,
             })
-        
+        del document_service
         return {"documents": documents}
     except Exception as e:
         error_detail = f"获取文档列表失败: {str(e)}\n{traceback.format_exc()}"
@@ -87,7 +85,10 @@ async def list_documents(db: Session = Depends(get_db)):
 async def delete_document(doc_id: str, db: Session = Depends(get_db)):
     try:
         logger.info("delete:" + str(doc_id))
-        deleted = DocumentService(db).delete_document(doc_id)
+        document_service = DocumentService(db)
+        deleted = document_service.delete_document(doc_id)
+        del document_service
+        
         if deleted:
             return JSONResponse(content={"message": "文档删除成功"}, status_code=200)
         else:

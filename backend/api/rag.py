@@ -7,14 +7,14 @@ from service.rag_service import RAGService
 from service.conversation_service import ConversationService
 from db.database import get_db
 from service.config import Config
-from service.logger import logger
+from utils.logger import logger
 
 router = APIRouter()
 
 class RAGRequest(BaseModel):
     """RAG请求模型"""
     query: str = Field(..., description="用户输入的查询文本")
-    model: str = Field("Qwen/QwQ-32B", description="使用的模型名称")
+    model: str = Field("Qwen/Qwen2.5-7B-Instruct", description="使用的模型名称")
     top_k: int = Field(5, description="检索的文档数量，默认为5")
 
 
@@ -62,9 +62,7 @@ async def rag_chat(request: RAGChatRequest, db: Session = Depends(get_db)):
         if not conversation:
             # 创建新对话
             title = request.query[:50] + "..." if len(request.query) > 50 else request.query
-            conversation = conversation_service.create_conversation(
-                title=title
-            )
+            conversation = conversation_service.create_conversation(title=title)
             conversation_id = str(conversation.id)
             logger.info(f"创建新对话: {conversation_id}")
         
@@ -79,7 +77,6 @@ async def rag_chat(request: RAGChatRequest, db: Session = Depends(get_db)):
         rag_response = await rag_service.non_streaming_workflow(
             conversation_id=conversation_id,
             user_query=request.query,
-            model=request.model,
         )
         # 添加模型消息
         ai_message = conversation_service.add_message(

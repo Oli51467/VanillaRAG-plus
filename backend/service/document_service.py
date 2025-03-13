@@ -14,6 +14,7 @@ from pypdf import PdfReader
 from service.milvus_service import MilvusService
 from service.config import Config
 from db.models import Document
+from utils.logger import logger
 
 
 class DocumentService:
@@ -21,7 +22,7 @@ class DocumentService:
         # 使用M3E嵌入模型替代简单嵌入模型
         self.db = db
         self.milvus_service = MilvusService()
-        self.text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
+        self.text_splitter = RecursiveCharacterTextSplitter(chunk_size=100, chunk_overlap=20)
     
     def allowed_file(self, filename: str) -> bool:
         return '.' in filename and filename.rsplit('.', 1)[1].lower() in Config.ALLOWED_EXTENSIONS
@@ -36,15 +37,14 @@ class DocumentService:
             file_type=file_extension,
             upload_time=datetime.now(timezone.utc).isoformat()
         )
-        print("addId"+ str(file_uuid))
         self.db.add(document)
         self.db.commit()
         self.db.refresh(document)
         
         return document
     
-    def get_all_documents(self, limit: int = 100, offset: int = 0) -> List[Document]:
-        stmt = select(Document).order_by(desc(Document.upload_time)).limit(limit).offset(offset)
+    def get_all_documents(self) -> List[Document]:
+        stmt = select(Document).order_by(desc(Document.upload_time))
         result = self.db.execute(stmt).scalars().all()
         return result
     
@@ -52,7 +52,7 @@ class DocumentService:
         try:
             self.milvus_service.delete_documents(Config.MILVUS_COLLECTION_NAME, doc_id)
         except Exception as e:
-            print(f"删除向量数据库失败: {str(e)}")
+            logger.error(f"删除向量数据库失败: {str(e)}")
             return False
         stmt = delete(Document).where(Document.id == doc_id)
         result = self.db.execute(stmt)
@@ -82,16 +82,16 @@ class DocumentService:
                     with open(file_path, 'r', encoding='latin-1') as f:
                         return f.read()
             
-            elif file_extension == 'docx':
+            elif file_extension == 'docx' or file_extension == 'doc':
                 # 处理DOCX文件
                 text = docx2txt.process(file_path)
                 return text if text else "DOCX文件无法提取文本内容"
             
         except Exception as e:
-            print(f"提取文本失败: {str(e)}")
+            logger.error(f"提取文档失败: {str(e)}")
             return f"文件处理失败: {str(e)}"
     
-    def process_document(self, file) -> List[str]:
+    def process_document(self, file) -> Document:
         try:
             # 确保上传目录存在
             os.makedirs(Config.UPLOAD_DIR, exist_ok=True)
@@ -106,25 +106,20 @@ class DocumentService:
 
             # 根据文档类型提取文本
             text = self.extract_text(file_path)
-            print(f"成功提取文本，长度: {len(text)}")
+            logger.info(f"成功提取文档，文本长度: {len(text)}")
             
-            if not text or len(text.strip()) == 0:
-                text = "文件内容为空"
+            if text and len(text.strip()) > 100:
+                # 分割文本
+                chunks = self.text_splitter.split_text(text)
+                logger.info(f"文本分割完成，共 {len(chunks)} 个块")
                 
-            # 分割文本
-            chunks = self.text_splitter.split_text(text)
-            print(f"文本分割完成，共 {len(chunks)} 个块")
-            
-            if not chunks:
-                chunks = ["文件内容为空或无法分割"]
-            
-            # 将文档添加到向量数据库
-            self.milvus_service.create_collection(Config.MILVUS_COLLECTION_NAME, dimension=1024)
-            # 向量化并存储
-            self.milvus_service.add_documents(chunks=chunks, collection_name=Config.MILVUS_COLLECTION_NAME, document_uuid=document_uuid, document_name=file.filename)
-            print("向量数据库保存成功")
+                # 将文档添加到向量数据库
+                self.milvus_service.create_collection(Config.MILVUS_COLLECTION_NAME, dimension=1024)
+                # 向量化并存储
+                self.milvus_service.add_documents(chunks=chunks, collection_name=Config.MILVUS_COLLECTION_NAME, document_uuid=document_uuid, document_name=file.filename)
+                logger.info("文档已存储至向量数据库")
         except Exception as e:
-            print(f"向量数据库保存失败: {str(e)}")
+            logger.error(f"文档保存至向量数据库失败: {str(e)}")
             raise e
         # 保存文档
         document = self.save_document(file, file_path, document_uuid)

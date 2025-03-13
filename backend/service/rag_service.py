@@ -1,4 +1,4 @@
-from typing import List, Dict, Any, Tuple
+from typing import List, Dict, Any
 import json
 import time
 import asyncio
@@ -8,17 +8,19 @@ from service.document_service import DocumentService
 from service.conversation_service import ConversationService
 from sqlalchemy.orm import Session
 from service.llm_service import LLM_Service
-from service.prompts import build_rewrite_prompt
-from service.logger import logger
+from utils.prompts import build_rewrite_prompt
+from utils.logger import logger
 from service.config import Config
-import service.prompts as prompts
+import utils.prompts as prompts
+
+
 class RAGService:
     def __init__(self, db: Session):
         self.document_service = DocumentService(db)
         self.conversation_service = ConversationService(db)
         self.llm_service = LLM_Service(Config)
 
-    async def non_streaming_workflow(self, conversation_id: str, user_query: str, model: str = "Qwen/QwQ-32B", top_k: int = 5) -> Dict[str, Any]:
+    async def non_streaming_workflow(self, conversation_id: str, user_query: str) -> Dict[str, Any]:
         needs_retrieve_chunk = True
         request_id = str(uuid.uuid4())
 
@@ -51,7 +53,7 @@ class RAGService:
             logger.info("检索知识库...")
             search_tasks = [self.document_service.retrieve(question, Config.RETRIEVE_TOPK) for question in expanded_questions]
             task_results = await asyncio.gather(*search_tasks)
-            print(f"检索知识库结果: {task_results}")
+            logger.info(f"检索知识库结果: {task_results}")
             retrieved_chunks = []
             for (chunks, references) in task_results:
                 retrieved_chunks.extend(chunks)
@@ -108,7 +110,6 @@ class RAGService:
                     raise ValueError("解析结果不是有效的列表")
                 
                 questions = [item['question'] for item in expansions if 'question' in item]
-                print(questions)
                 if len(questions) < question_rewrite_num:
                     raise ValueError("重写问题数不足。")
 

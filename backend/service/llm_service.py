@@ -1,6 +1,6 @@
 from service.config import Config
 import asyncio
-from service.logger import logger
+from utils.logger import logger
 import requests
 
 class LLM_Service:
@@ -34,7 +34,6 @@ class LLM_Service:
 
     
     def build_llm_request(self, messages, temperature=0.7, extra_body=None) -> dict:
-        print("LLM messages:", messages)
         payload = {
             "model": self.model,
             "messages": messages,

@@ -19,7 +19,7 @@ class Config:
     API_V1_STR = "/v1"
 
     # 允许上传的文件类型
-    ALLOWED_EXTENSIONS = {"pdf", "txt", "docx"}
+    ALLOWED_EXTENSIONS = {"pdf", "txt", "docx", "doc", "markdown"}
 
     # LLM相关配置
     LLM_BASE_URL = "https://api.siliconflow.cn/v1/chat/completions"                         # 接入LLM服务的基础URL                                          # 接入LLM服务的API_KEY，若无需验证可随便传
