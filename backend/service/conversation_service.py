@@ -6,13 +6,11 @@ from datetime import datetime
 
 from db.models import Conversation, ConversationMessage
 from service.chat_history import PostgresChatMessageHistory
-from service.document_service import DocumentService
 
 class ConversationService:
     
     def __init__(self, db: Session):
         self.db = db
-        self.document_service = DocumentService(db)
     
     def create_conversation(self, title: str, metadata: Optional[Dict[str, Any]] = None) -> Conversation:
         conversation = Conversation(

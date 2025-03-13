@@ -63,5 +63,5 @@ class Document(Base):
             "file_name": self.file_name,
             "file_size": self.file_size,
             "file_type": self.file_type,
-            "upload_time": self.upload_time.isoformat() if self.upload_time else None
+            "upload_time": self.upload_time.isoformat() + "+08:00" if self.upload_time else None
         }

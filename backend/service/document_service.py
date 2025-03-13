@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import os
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 
 from typing import List
 from sqlalchemy.orm import Session
@@ -34,7 +34,7 @@ class DocumentService:
             file_name=file.filename,
             file_size=os.path.getsize(file_path),
             file_type=file_extension,
-            upload_time=datetime.now().isoformat()
+            upload_time=datetime.now(timezone.utc).isoformat()
         )
         print("addId"+ str(file_uuid))
         self.db.add(document)

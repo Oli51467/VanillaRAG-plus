@@ -57,6 +57,9 @@ class MilvusService:
     
     def create_collection(self, collection_name, dimension=None):
         if self.client.has_collection(collection_name=collection_name):
+            # collection = Collection(collection_name)
+            # if not collection.has_index():
+            #     self.create_index(collection_name)
             return
         # 定义字段
         fields = [
@@ -71,7 +74,6 @@ class MilvusService:
             dimension=dimension,
             schema=schema
         )
-
         self.create_index(collection_name)
 
     def create_index(self, collection_name):

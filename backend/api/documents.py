@@ -1,12 +1,13 @@
 import traceback
 from datetime import datetime
 from typing import List, Optional
-from fastapi import APIRouter, File, UploadFile, HTTPException, Form, BackgroundTasks, Depends
+from fastapi import APIRouter, File, UploadFile, HTTPException, Depends
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from service.document_service import DocumentService
 from db.database import get_db
 from pydantic import BaseModel
+from service.logger import logger
 
 router = APIRouter()
 
@@ -73,20 +74,19 @@ async def list_documents(db: Session = Depends(get_db)):
                 "upload_time": doc.upload_time,
                 "file_size": doc.file_size,
                 "file_type": doc.file_type,
-                "file_path": None  # 或其他适当的默认值
             })
         
         return {"documents": documents}
     except Exception as e:
         error_detail = f"获取文档列表失败: {str(e)}\n{traceback.format_exc()}"
-        print(error_detail)
+        logger.error(error_detail)
         raise HTTPException(status_code=500, detail=f"获取文档列表失败: {str(e)}")
 
 
 @router.delete("/{doc_id}")
 async def delete_document(doc_id: str, db: Session = Depends(get_db)):
     try:
-        print("delete:" + str(doc_id))
+        logger.info("delete:" + str(doc_id))
         deleted = DocumentService(db).delete_document(doc_id)
         if deleted:
             return JSONResponse(content={"message": "文档删除成功"}, status_code=200)
@@ -94,5 +94,5 @@ async def delete_document(doc_id: str, db: Session = Depends(get_db)):
             raise HTTPException(status_code=404, detail="文档不存在")
     except Exception as e:
         error_detail = f"删除文档失败: {str(e)}\n{traceback.format_exc()}"
-        print(error_detail)
+        logger.error(error_detail)
         raise HTTPException(status_code=500, detail=f"删除文档失败: {str(e)}") 
