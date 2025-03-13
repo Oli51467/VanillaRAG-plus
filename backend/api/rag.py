@@ -2,11 +2,12 @@ from typing import Dict, Any, Optional
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel, Field, ConfigDict
 from sqlalchemy.orm import Session
-import uuid
 
 from service.rag_service import RAGService
 from service.conversation_service import ConversationService
 from db.database import get_db
+from service.config import Config
+from service.logger import logger
 
 router = APIRouter()
 
@@ -43,63 +44,56 @@ class RAGChatResponse(BaseModel):
     message_id: str = Field(..., description="消息ID")
 
 
-
 @router.post("/chat", response_model=RAGChatResponse)
-async def rag_chat(
-    rag_request: RAGChatRequest,
-    db: Session = Depends(get_db)
-):
-    """
-    RAG聊天接口
-    
-    该接口根据用户输入检索相关文档，生成提示，调用大模型获取回复，并保存对话历史。
-    """
+async def rag_chat(request: RAGChatRequest, db: Session = Depends(get_db)):
     rag_service = RAGService(db)
     try:
-        
         # 创建对话服务
         conversation_service = ConversationService(db)
-        
         # 获取或创建对话
-        conversation_id = rag_request.conversation_id
+        conversation_id = request.conversation_id
         conversation = None
         
         if conversation_id:
             # 尝试获取现有对话
             conversation = conversation_service.get_conversation(conversation_id)
+            logger.info(f"获取现有对话: {conversation_id}")
             
         if not conversation:
             # 创建新对话
-            title = rag_request.query[:50] + "..." if len(rag_request.query) > 50 else rag_request.query
+            title = request.query[:50] + "..." if len(request.query) > 50 else request.query
             conversation = conversation_service.create_conversation(
                 title=title
             )
             conversation_id = str(conversation.id)
+            logger.info(f"创建新对话: {conversation_id}")
         
         # 添加用户消息
         conversation_service.add_message(
             conversation_id=conversation_id,
             role="human",
-            content=rag_request.query
+            content=request.query
         )
-        
-        # 获取RAG响应
-        rag_response = rag_service.get_rag_response(
-            query=rag_request.query,
-            model=rag_request.model,
+        logger.info(f"添加用户消息, content: {request.query}")
+        # RAG
+        rag_response = await rag_service.non_streaming_workflow(
+            conversation_id=conversation_id,
+            user_query=request.query,
+            model=request.model,
         )
-        
-        # 添加AI回复
+        logger.info(f"RAG响应: {rag_response}")
+        # 添加模型消息
         ai_message = conversation_service.add_message(
             conversation_id=conversation_id,
             role="ai",
-            content=rag_response["response"]
+            content=rag_response['response']
         )
+        logger.info(f"添加模型消息: {rag_response['response']}")
         
         return RAGChatResponse(
-            prompt=rag_response["prompt"],
-            response=rag_response["response"],
-            documents_count=rag_response["documents_count"],
+            prompt=rag_response['prompt'],
+            response=rag_response['response'],
+            documents_count=rag_response['documents_count'],
             conversation_id=conversation_id,
             message_id=str(ai_message.id)
         )

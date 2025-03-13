@@ -3,20 +3,19 @@ import asyncio
 from service.logger import logger
 import requests
 
-class LLM:
+class LLM_Service:
     def __init__(self, config: Config):
         self.api_key = config.API_KEY
         self.base_url = config.LLM_BASE_URL
         self.model = config.LLM_MODEL
         self.role = "user"
         self.stream = False
-        self.max_tokens = 512
+        self.max_tokens = 4095
         self.temperature = 0.7
         self.top_p = 0.7
         self.top_k = 50
         self.frequency_penalty = 0.5
         self.n = 1
-        self.response_format = {"type": "text"}
         self.tools = [
             {
                 "type": "function",
@@ -34,11 +33,12 @@ class LLM:
         }
 
     
-    def build_llm_request(self, question: str) -> dict:
+    def build_llm_request(self, question: str, system_content: str = None) -> dict:
         payload = {
             "model": self.model,
             "messages": [
-                {"role": self.role, "content": question}
+                {"role": self.role, "content": question},
+                {"role": "system", "content": system_content if system_content else "请根据用户输入解决或回答问题"}
             ],
             "stream": self.stream,
             "max_tokens": self.max_tokens,
@@ -48,7 +48,7 @@ class LLM:
             "top_k": self.top_k,
             "frequency_penalty": self.frequency_penalty,
             "n": self.n,
-            "response_format": self.response_format,
+            "response_format": {"type": "text"},
             "tools": self.tools,
         }
         headers = self.headers
@@ -58,7 +58,7 @@ class LLM:
 
     def chat_completion(self, payload: dict, headers: dict) -> str:
         try:
-            response = requests.post("POST", self.base_url, json=payload, headers=headers)
+            response = requests.post(self.base_url, json=payload, headers=headers)
             # 检查响应
             if response.status_code == 200:
                 result = response.json()
@@ -78,3 +78,7 @@ class LLM:
     async def async_chat_completion(self, question: str) -> str:
         payload, headers = self.build_llm_request(question)
         return await asyncio.to_thread(self.chat_completion, json=payload, headers=headers)
+    
+    async def await_chat_completion(self, question: str, system_content: str) -> str:
+        payload, headers = self.build_llm_request(question, system_content)
+        return self.chat_completion(payload, headers)

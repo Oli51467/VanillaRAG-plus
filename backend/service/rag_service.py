@@ -1,103 +1,89 @@
 from typing import List, Dict, Any, Tuple
+import json
+import asyncio
 
 from service.document_service import DocumentService
+from service.conversation_service import ConversationService
 from sqlalchemy.orm import Session
-from langchain.schema.document import Document
-from service.llm import LLM
-
+from service.llm_service import LLM_Service
+from service.prompts import build_rewrite_prompt
+from service.logger import logger
+from service.config import Config
 
 class RAGService:
-    """检索增强生成服务"""
-    
     def __init__(self, db: Session):
-        """初始化服务"""
         self.document_service = DocumentService(db)
-        self.model_service = LLM()
-    
-    def retrieve_relevant_documents(self, query: str, top_k: int = 5) -> List[Tuple[Document, float]]:
-        """
-        根据用户输入检索相关文档
-        
-        Args:
-            query: 用户输入文本
-            top_k: 返回的相关文档数量
-            
-        Returns:
-            包含文档和相似度分数的列表
-        """
-        try:
-            # 使用向量数据库检索相关文档
-            docs_with_scores = self.document_service.search_documents(query, top_k)
-            return docs_with_scores
-        except Exception as e:
-            print(f"检索相关文档失败: {str(e)}")
-            return []
-    
-    def format_context_for_llm(self, docs_with_scores: List[Tuple[Document, float]]) -> str:
-        """
-        将检索到的文档格式化为大模型可用的上下文
-        
-        Args:
-            docs_with_scores: 检索到的文档和相似度分数列表
-            
-        Returns:
-            格式化后的上下文文本
-        """
-        context = ""
-        
-        for i, (doc, score) in enumerate(docs_with_scores):
-            # 格式化文档内容
-            context += f"内容: {doc.page_content}\n"
-        
-        return context
-    
-    def generate_rag_prompt(self, query: str, top_k: int = 5) -> Tuple[str, int]:
-        """
-        生成RAG的完整提示
-        
-        Args:
-            query: 用户输入文本
-            top_k: 返回的相关文档数量
-            
-        Returns:
-            格式化后的提示文本，可以直接发送给大模型
-        """
-        # 获取相关文档
-        docs_with_scores = self.retrieve_relevant_documents(query, top_k)
-        
-        # 如果没有找到相关文档
-        if not docs_with_scores:
-            return f"用户问题: {query}\n\n没有找到相关文档，请根据您的知识来回答这个问题。"
-        
-        # 格式化上下文
-        context = self.format_context_for_llm(docs_with_scores)
-        
-        # 构建提示
-        prompt_template = f"""请回答下面的问题。请使用以下提供的文档内容来帮助回答，如果文档内容不足以回答问题，请使用您自己的知识。相关文档:{context}用户问题: {query}。请根据以上信息提供详细回答:"""
-            
-        return prompt_template, len(docs_with_scores)
-    
+        self.conversation_service = ConversationService(db)
+        self.model_service = LLM_Service(Config)
 
-    def get_rag_response(self, query: str, model: str = "Qwen/QwQ-32B", top_k: int = 5) -> Dict[str, Any]:
-        """
-        获取RAG完整响应
+    async def non_streaming_workflow(self, conversation_id: str, user_query: str, model: str = "Qwen/QwQ-32B", top_k: int = 5) -> Dict[str, Any]:
+        # Step 1: 获取该对话的所有历史消息和最后一条消息
+        history_messages = self.conversation_service.get_conversation_messages(conversation_id)
+        # 截掉最后一条
+        if len(history_messages) > 0:
+            history_messages = history_messages[:-1]
+        logger.info("获取历史消息完成...")
+
+        # Step 2: 对原问题进行重新扩展
+        expanded_questions = await self.rewrite_question(self.model_service, user_query, Config.QUESTION_REWRITE_NUM)
+        if len(history_messages) > 0:
+            expanded_questions.append(history_messages[-1].content)
+        logger.info("重写扩展完成...")
+    
+        # Step 3: 判断是否需要检索知识库
+        if Config.QUESTION_RETRIEVE_ENABLED:
+            logger.info("判断是否需要检索知识库...")
+
+        # Step 4: 检索知识库
+        logger.info("检索知识库...")
+        search_tasks = [self.document_service.search_documents(question, Config.RETRIEVE_TOPK) for question in expanded_questions]
+        #search_results = await asyncio.gather(*search_tasks)
+        logger.info("检索知识库完成...")
+
+        # Step 5: 调用大模型
+        # Step 6: 返回结果
+
+        # # 生成提示
+        # prompt, documents_count = self.generate_rag_prompt(query, top_k)
         
-        Args:
-            query: 用户输入文本
-            model: 模型名称
-            top_k: 返回的相关文档数量
-            
-        Returns:
-            包含提示和回复的字典
-        """
-        # 生成提示
-        prompt, documents_count = self.generate_rag_prompt(query, top_k)
-        
-        # 调用大模型
-        response = self.model_service.async_chat_completion(prompt)
+        # # 调用大模型
+        # response = self.model_service.async_chat_completion(prompt)
         
         return {
-            "prompt": prompt,
-            "response": response,
-            "documents_count": documents_count
+            'prompt': expanded_questions[0],
+            'response': expanded_questions[0],
+            'documents_count': 1
         } 
+    
+    async def rewrite_question(self, llm_service: LLM_Service, original_question: str, question_rewrite_num: int) -> List:
+        """
+        使用 LLM 将用户的原始问题进行扩展，返回新的问题列表。
+        根据 question_rewrite_num 生成对应数量的重写问法。
+        如果 JSON 解析失败或内容不符合预期，会进行3次重试，全部重试失败则只返回原问题。
+        """
+        rewrite_prompt = build_rewrite_prompt(original_question, question_rewrite_num)
+        max_retries = 3
+        for attempt in range(max_retries):
+            logger.info(f"重写问题第{attempt + 1}次尝试重写扩展...")
+            rewrite_response = await llm_service.await_chat_completion(rewrite_prompt, "你是一个问题扩展助手，可以帮我对原问题进行扩展。")
+
+            try:
+                expansions = json.loads(rewrite_response)
+                if not isinstance(expansions, list) or len(expansions) == 0:
+                    raise ValueError("解析结果不是有效的列表")
+                
+                questions = [item['question'] for item in expansions if 'question' in item]
+                print(questions)
+                if len(questions) < question_rewrite_num:
+                    raise ValueError("重写问题数不足。")
+
+                return questions
+            
+            except Exception as e:
+                logger.warning(f"重写扩展解析失败 (第 {attempt} 次): {e}")
+                if attempt < max_retries:
+                    asyncio.sleep(0.02)
+                else:
+                    logger.warning("已达最大重试次数，放弃重写扩展。")
+        
+        return [original_question]

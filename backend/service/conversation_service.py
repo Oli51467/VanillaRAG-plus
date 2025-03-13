@@ -5,7 +5,6 @@ import uuid
 from datetime import datetime
 
 from db.models import Conversation, ConversationMessage
-from service.chat_history import PostgresChatMessageHistory
 
 class ConversationService:
     
@@ -16,6 +15,7 @@ class ConversationService:
         conversation = Conversation(
             id=uuid.uuid4(),
             title=title,
+            model_type=1,
             meta_data=metadata or {}
         )
         
@@ -71,46 +71,22 @@ class ConversationService:
         
         return message
     
-    def get_messages(self, conversation_id: str) -> List[ConversationMessage]:
+    def get_conversation_messages(self, conversation_id: str) -> List[ConversationMessage]:
         stmt = select(ConversationMessage).where(
             ConversationMessage.conversation_id == conversation_id
         ).order_by(ConversationMessage.sequence)
         
         result = self.db.execute(stmt).scalars().all()
+        print(f"获取对话消息: {result}")
         return result
     
-    def get_chat_history(self, conversation_id: str) -> PostgresChatMessageHistory:
-        return PostgresChatMessageHistory(conversation_id=conversation_id, session=self.db)
-    
-    def process_chat(self, conversation_id: str, user_message: str, model_type: int) -> str:
-        # 获取对话，如果不存在则创建
-        conversation = self.get_conversation(conversation_id)
-        if not conversation:
-            conversation = self.create_conversation(
-                title=user_message[:50] + "..." if len(user_message) > 50 else user_message
-            )
-        
-        # 获取聊天历史
-        chat_history = self.get_chat_history(str(conversation.id))
-        
-        # 添加用户消息
-        chat_history.add_user_message(user_message)
-        
-        # 使用RAG服务生成回复
-        from service.rag_service import RAGService
-        rag_service = RAGService()
-        prompt = rag_service.generate_rag_prompt(user_message, model_type)
-        
-        # 添加AI回复
-        chat_history.add_ai_message(prompt)
-        
-        return prompt
     
     def create_conversation_with_timestamp(self, title: str, metadata: Optional[Dict[str, Any]] = None, created_at: Optional[datetime] = None) -> Conversation:
         conversation = Conversation(
             id=uuid.uuid4(),
             title=title,
-            meta_data=metadata or {}
+            meta_data=metadata or {},
+            model_type=1
         )
         
         if created_at:

@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 from typing import List
-from pymilvus import MilvusClient, MilvusException, FieldSchema, CollectionSchema, DataType, Collection
+from pymilvus import MilvusClient, MilvusException, FieldSchema, CollectionSchema, DataType, Collection, AnnSearchRequest, WeightedRanker
 from pymilvus.model.hybrid import BGEM3EmbeddingFunction
 from service.logger import logger
 from service.config import Config
@@ -17,8 +17,10 @@ class M3EEmbeddings():
         )
 
     def encode_documents(self, content: List[str]) -> List[float]:
-        """将文本转换为向量"""
         return self.embedding_function.encode_documents(content)
+    
+    def encode_query(self, content: List[str]) -> List[float]:
+        return self.embedding_function.encode_queries(content)
     
     
 class MilvusService:
@@ -57,18 +59,18 @@ class MilvusService:
     
     def create_collection(self, collection_name, dimension=None):
         if self.client.has_collection(collection_name=collection_name):
-            # collection = Collection(collection_name)
-            # if not collection.has_index():
-            #     self.create_index(collection_name)
-            return
+            self.client.drop_collection(collection_name)
+            #return
         # 定义字段
         fields = [
             FieldSchema(name="document_id", dtype=DataType.VARCHAR, is_primary=True, max_length=256),  # 文档唯一标识
             FieldSchema(name="chunk_text", dtype=DataType.VARCHAR, max_length=8192),  # 文本块内容
-            FieldSchema(name="embedding", dtype=DataType.FLOAT_VECTOR, dim=dimension)       # 向量维度根据模型调整
+            FieldSchema(name="dense_embedding", dtype=DataType.FLOAT_VECTOR, dim=dimension),       # 向量维度根据模型调整
+            FieldSchema(name="sparse_embedding", dtype=DataType.SPARSE_FLOAT_VECTOR)  # 稀疏向量
         ]
         # 创建 Collection
         schema = CollectionSchema(fields, description="Document chunks")
+        
         self.client.create_collection(
             collection_name=collection_name,
             dimension=dimension,
@@ -81,11 +83,18 @@ class MilvusService:
             index_params =self.client.prepare_index_params()
 
             index_params.add_index(
-                field_name="embedding",
-                index_name="vector_index",
+                field_name="dense_embedding",
+                index_name="dense_embedding_index",
                 index_type="IVF_FLAT",
                 metric_type="COSINE",
                 params={ "nlist": 128 }
+            )
+
+            index_params.add_index(
+                field_name="sparse_embedding",
+                index_name="sparse_embedding_index",
+                index_type="SPARSE_WAND",
+                metric_type="IP",
             )
             
             # 为向量字段创建索引
@@ -103,21 +112,30 @@ class MilvusService:
         
 
     def add_documents(self, chunks, collection_name, **kwargs):
-        if self.client.has_collection(collection_name=collection_name):
+        if not self.client.has_collection(collection_name=collection_name):
             logger.error(f"Collection {collection_name} not found, create it")
-            return
+            self.create_collection(collection_name)
 
         # 生成文本的向量嵌入
         vectors = self.embedding_model.encode_documents(chunks)
 
-        data = [
-            {
-                "document_id": str(kwargs["document_uuid"]),        # 文档ID
-                "chunk_text": chunks[i],                            # 文本块
-                "embedding": vectors['dense'][i]                    # 向量嵌入
-            }
-            for i in range(len(chunks))
-        ]
+        # 准备数据
+        data = []
+        sparse_matrix = vectors['sparse']  # 假设这是scipy.sparse矩阵
+        
+        for i in range(len(chunks)):
+            # 获取当前稀疏向量行
+            row = sparse_matrix.getrow(i).tocoo()
+            
+            # 转换为Milvus支持的字典格式
+            sparse_dict = {int(col): float(val) for col, val in zip(row.col, row.data)}
+            
+            data.append({
+                "document_id": str(kwargs["document_uuid"]),
+                "chunk_text": chunks[i],
+                "dense_embedding": vectors['dense'][i],
+                "sparse_embedding": sparse_dict
+            })
         
         try:
             res = self.client.insert(collection_name=collection_name, data=data)
@@ -156,27 +174,36 @@ class MilvusService:
                 pass
             raise
 
-    def search(self, query, collection_name, limit=3):
-        query_vectors = self.embed_model.batch_encode([query])
-        return self.search_by_vector(query_vectors[0], collection_name, limit)
+    def search_by_vector(self, vector, collection_name, limit=5):
+        #先加载集合到内存
+        self.client.load_collection(collection_name=collection_name, timeout=100000)
+        logger.info("集合已加载到内存")
 
-    def search_by_vector(self, vector, collection_name, limit=3):
-        res = self.client.search(
-            collection_name=collection_name,  # target collection
-            data=[vector],  # query vectors
-            limit=limit,  # number of returned entities
-            output_fields=["text", "file_id"],  # specifies fields to be returned
+        # 准备混合搜索参数
+        dense_search_params = {"metric_type": "COSINE", "params": {}}
+        dense_search_req = AnnSearchRequest(
+            data=vector['dense'],
+            anns_field="dense_embedding",
+            param=dense_search_params,
+            limit=limit,
         )
-
-        return res[0]
-
-    def examples(self, collection_name, limit=20):
-        res = self.client.query(
+        sparse_search_params = {"metric_type": "IP", "params": {}}
+        sparse_search_req = AnnSearchRequest(
+            data=vector['sparse'],
+            anns_field="sparse_embedding",
+            param=sparse_search_params,
+            limit=limit,
+        )
+        reranker = WeightedRanker(1.0, 1.0)
+        res = self.client.hybrid_search(
             collection_name=collection_name,
-            limit=10,
-            output_fields=["id", "text"],
+            reqs=[dense_search_req, sparse_search_req],
+            ranker=reranker,
+            limit=limit,
+            output_fields=["document_id", "chunk_text"],
         )
-        return res
+        print("res[0]:", res[0])
+        return res[0]
 
     def search_by_id(self, collection_name, id, output_fields=["id", "text"]):
         res = self.client.get(collection_name, id, output_fields=output_fields)

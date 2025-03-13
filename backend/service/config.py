@@ -23,7 +23,7 @@ class Config:
 
     # LLM相关配置
     LLM_BASE_URL = "https://api.siliconflow.cn/v1/chat/completions"                         # 接入LLM服务的基础URL                                          # 接入LLM服务的API_KEY，若无需验证可随便传
-    LLM_MODEL = "Qwen/QwQ-32B"                                             # 接入LLM服务的模型选择，若无需验证可随便传
+    LLM_MODEL = "Qwen/Qwen2.5-7B-Instruct"                                             # 接入LLM服务的模型选择，若无需验证可随便传
 
     # 本服务的授权验证
     API_KEY = os.getenv("API_KEY")    # 本服务允许使用的API_KEY列表
@@ -39,8 +39,8 @@ class Config:
 
     # 知识库检索及模型
     QUESTION_REWRITE_ENABLED = True                                       # 是否开启重写重写扩展
-    QUESTION_REWRITE_NUM = 2                                              # 问题重写扩展数量（额外扩展的问题数量，不含原问题）
-    QUESTION_RETRIEVE_ENABLED = True                                      # 是否开启问题相关性判断
+    QUESTION_REWRITE_NUM = 3                                              # 问题重写扩展数量（额外扩展的问题数量，不含原问题）
+    QUESTION_RETRIEVE_ENABLED = False                                      # 是否开启问题相关性判断
     EMBEDDING_MODEL = './model_weight/bge-m3'                            # 嵌入模型的路径
     RETRIEVE_TOPK = 5                                                     # 每个问题检索的文档数量
     RERANKING_MODEL = './model_weight/bge-reranker-v2-m3'                # 重排序模型的路径

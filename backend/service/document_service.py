@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import os
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 
 from typing import List
 from sqlalchemy.orm import Session
@@ -92,7 +92,6 @@ class DocumentService:
             return f"文件处理失败: {str(e)}"
     
     def process_document(self, file) -> List[str]:
-
         try:
             # 确保上传目录存在
             os.makedirs(Config.UPLOAD_DIR, exist_ok=True)
@@ -121,8 +120,6 @@ class DocumentService:
             
             # 将文档添加到向量数据库
             self.milvus_service.create_collection(Config.MILVUS_COLLECTION_NAME, dimension=1024)
-            print("创建Milvus集合成功")
-
             # 向量化并存储
             self.milvus_service.add_documents(chunks=chunks, collection_name=Config.MILVUS_COLLECTION_NAME, document_uuid=document_uuid)
             print("向量数据库保存成功")
@@ -135,22 +132,9 @@ class DocumentService:
         
 
     def search_documents(self, query: str, top_k: int = 5) -> List[tuple]:
-        """搜索文档"""
-        # 使用向量数据库进行相似度搜索
-        # 多取几个结果，以便在过滤掉初始化文档后仍有足够的结果
-        extended_top_k = top_k + 1
-        docs_with_scores = self.vector_db.similarity_search_with_score(query, k=extended_top_k)
-        
-        # 过滤掉初始化文档
-        filtered_results = []
-        for doc, score in docs_with_scores:
-            # 检查是否是初始化文档
-            if "source" in doc.metadata and doc.metadata["source"] == "初始化":
-                continue
-            filtered_results.append((doc, score))
-        
-        # 确保不超过请求的top_k数量
-        filtered_results = filtered_results[:top_k]
-        
+        # 查询向量化
+        query_vectors = self.milvus_service.embedding_model.encode_query([query])
+
+        results = self.milvus_service.search_by_vector(query_vectors, Config.MILVUS_COLLECTION_NAME, top_k)
         # 返回文档和分数
-        return filtered_results 
+        return results 

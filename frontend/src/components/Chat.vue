@@ -290,7 +290,7 @@ export default {
                 // 添加错误消息
                 messages.value.push({
                     role: 'assistant',
-                    content: '抱歉，我无法处理您的请求。请确保您已上传文档，并且服务器正常运行。'
+                    content: '出错啦。'
                 })
 
                 ElMessage({
@@ -397,7 +397,7 @@ export default {
                 }
 
                 // 直接更新对话标题
-                await axios.patch(`${CONVERSATION_API_BASE_URL}${editingConversationId.value}`, {
+                await axios.post(`${CONVERSATION_API_BASE_URL}${editingConversationId.value}`, {
                     title: editingTitle.value
                 })
 
