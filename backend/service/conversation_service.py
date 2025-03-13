@@ -77,7 +77,6 @@ class ConversationService:
         ).order_by(ConversationMessage.sequence)
         
         result = self.db.execute(stmt).scalars().all()
-        print(f"获取对话消息: {result}")
         return result
     
     

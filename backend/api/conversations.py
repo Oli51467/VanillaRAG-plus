@@ -30,7 +30,7 @@ class ConversationList(BaseModel):
 
 class MessageCreate(BaseModel):
     content: str = Field(..., description="消息内容")
-    role: str = Field("human", description="角色 (human, ai, system)")
+    role: str = Field("user", description="角色 (user, assistant, system)")
 
 class MessageResponse(BaseModel):
     id: str = Field(..., description="消息ID")

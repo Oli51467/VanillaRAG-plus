@@ -33,17 +33,15 @@ class LLM_Service:
         }
 
     
-    def build_llm_request(self, question: str, system_content: str = None) -> dict:
+    def build_llm_request(self, messages, temperature=0.7, extra_body=None) -> dict:
+        print("LLM messages:", messages)
         payload = {
             "model": self.model,
-            "messages": [
-                {"role": self.role, "content": question},
-                {"role": "system", "content": system_content if system_content else "请根据用户输入解决或回答问题"}
-            ],
+            "messages": messages,
             "stream": self.stream,
             "max_tokens": self.max_tokens,
             "stop": None,
-            "temperature": self.temperature,
+            "temperature": temperature,
             "top_p": self.top_p,
             "top_k": self.top_k,
             "frequency_penalty": self.frequency_penalty,
@@ -75,10 +73,6 @@ class LLM_Service:
             return f"调用模型时出错: {str(e)}" 
     
 
-    async def async_chat_completion(self, question: str) -> str:
-        payload, headers = self.build_llm_request(question)
-        return await asyncio.to_thread(self.chat_completion, json=payload, headers=headers)
-    
-    async def await_chat_completion(self, question: str, system_content: str) -> str:
-        payload, headers = self.build_llm_request(question, system_content)
-        return self.chat_completion(payload, headers)
+    async def async_chat_completion(self, messages: list, temperature=0.7, extra_body=None) -> str:
+        payload, headers = self.build_llm_request(messages, temperature, extra_body)
+        return await asyncio.to_thread(self.chat_completion, payload=payload, headers=headers)

@@ -71,7 +71,7 @@ async def rag_chat(request: RAGChatRequest, db: Session = Depends(get_db)):
         # 添加用户消息
         conversation_service.add_message(
             conversation_id=conversation_id,
-            role="human",
+            role="user",
             content=request.query
         )
         logger.info(f"添加用户消息, content: {request.query}")
@@ -81,14 +81,12 @@ async def rag_chat(request: RAGChatRequest, db: Session = Depends(get_db)):
             user_query=request.query,
             model=request.model,
         )
-        logger.info(f"RAG响应: {rag_response}")
         # 添加模型消息
         ai_message = conversation_service.add_message(
             conversation_id=conversation_id,
-            role="ai",
+            role="assistant",
             content=rag_response['response']
         )
-        logger.info(f"添加模型消息: {rag_response['response']}")
         
         return RAGChatResponse(
             prompt=rag_response['prompt'],

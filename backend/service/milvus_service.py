@@ -3,6 +3,7 @@
 from typing import List
 from pymilvus import MilvusClient, MilvusException, FieldSchema, CollectionSchema, DataType, Collection, AnnSearchRequest, WeightedRanker
 from pymilvus.model.hybrid import BGEM3EmbeddingFunction
+from pymilvus.model.reranker import BGERerankFunction
 from service.logger import logger
 from service.config import Config
 
@@ -25,17 +26,21 @@ class M3EEmbeddings():
     
 class MilvusService:
     def __init__(self):
-        """初始化Milvus服务"""
         if not self.connect_to_milvus():
             raise ConnectionError("Failed to connect to Milvus")
+        # 嵌入模型
         self.embedding_model = M3EEmbeddings()
+        # 重排序模型
+        self.reranker = (
+            BGERerankFunction(model_name=Config.RERANKING_MODEL, device='cpu')
+        )
 
     def connect_to_milvus(self):
         try:
             self.client = MilvusClient(uri=Config.MILVUS_SERVER, user=Config.MILVUS_USER,
             password=Config.MILVUS_PASSWORD)
             self.client.list_collections()
-            print("Successfully connected to Milvus")
+            logger.info("Successfully connected to Milvus")
             return True
         except MilvusException as e:
             logger.error(f"Failed to connect to Milvus: {e}")
@@ -59,11 +64,12 @@ class MilvusService:
     
     def create_collection(self, collection_name, dimension=None):
         if self.client.has_collection(collection_name=collection_name):
-            self.client.drop_collection(collection_name)
-            #return
+            #self.client.drop_collection(collection_name)
+            return
         # 定义字段
         fields = [
             FieldSchema(name="document_id", dtype=DataType.VARCHAR, is_primary=True, max_length=256),  # 文档唯一标识
+            FieldSchema(name="document_name", dtype=DataType.VARCHAR, max_length=256),  # 文档名称
             FieldSchema(name="chunk_text", dtype=DataType.VARCHAR, max_length=8192),  # 文本块内容
             FieldSchema(name="dense_embedding", dtype=DataType.FLOAT_VECTOR, dim=dimension),       # 向量维度根据模型调整
             FieldSchema(name="sparse_embedding", dtype=DataType.SPARSE_FLOAT_VECTOR)  # 稀疏向量
@@ -131,7 +137,8 @@ class MilvusService:
             sparse_dict = {int(col): float(val) for col, val in zip(row.col, row.data)}
             
             data.append({
-                "document_id": str(kwargs["document_uuid"]),
+                "document_id": str(kwargs['document_uuid']),
+                "document_name": str(kwargs['document_name']),
                 "chunk_text": chunks[i],
                 "dense_embedding": vectors['dense'][i],
                 "sparse_embedding": sparse_dict
@@ -177,7 +184,6 @@ class MilvusService:
     def search_by_vector(self, vector, collection_name, limit=5):
         #先加载集合到内存
         self.client.load_collection(collection_name=collection_name, timeout=100000)
-        logger.info("集合已加载到内存")
 
         # 准备混合搜索参数
         dense_search_params = {"metric_type": "COSINE", "params": {}}
@@ -200,17 +206,10 @@ class MilvusService:
             reqs=[dense_search_req, sparse_search_req],
             ranker=reranker,
             limit=limit,
-            output_fields=["document_id", "chunk_text"],
+            output_fields=["document_id", "chunk_text", "document_name"],
         )
-        print("res[0]:", res[0])
         return res[0]
 
     def search_by_id(self, collection_name, id, output_fields=["id", "text"]):
         res = self.client.get(collection_name, id, output_fields=output_fields)
         return res
-        
-        
-if __name__ == "__main__":
-    config = Config()
-    milvus_service = MilvusService()
-    print(milvus_service.get_collection_names())

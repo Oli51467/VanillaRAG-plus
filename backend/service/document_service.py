@@ -121,7 +121,7 @@ class DocumentService:
             # 将文档添加到向量数据库
             self.milvus_service.create_collection(Config.MILVUS_COLLECTION_NAME, dimension=1024)
             # 向量化并存储
-            self.milvus_service.add_documents(chunks=chunks, collection_name=Config.MILVUS_COLLECTION_NAME, document_uuid=document_uuid)
+            self.milvus_service.add_documents(chunks=chunks, collection_name=Config.MILVUS_COLLECTION_NAME, document_uuid=document_uuid, document_name=file.filename)
             print("向量数据库保存成功")
         except Exception as e:
             print(f"向量数据库保存失败: {str(e)}")
@@ -129,12 +129,26 @@ class DocumentService:
         # 保存文档
         document = self.save_document(file, file_path, document_uuid)
         return document
-        
 
-    def search_documents(self, query: str, top_k: int = 5) -> List[tuple]:
-        # 查询向量化
+    async def retrieve(self, query: str, top_k: int = 5) -> List[tuple]:
+        # Step1:查询向量化
         query_vectors = self.milvus_service.embedding_model.encode_query([query])
 
-        results = self.milvus_service.search_by_vector(query_vectors, Config.MILVUS_COLLECTION_NAME, top_k)
-        # 返回文档和分数
-        return results 
+        # Step2:混合检索
+        hit_results = self.milvus_service.search_by_vector(query_vectors, Config.MILVUS_COLLECTION_NAME, top_k)
+        # Step3:重排序
+        result_texts = [hit.get('entity').get("chunk_text") for hit in hit_results]  # 文本内容
+        content2doc_name = {hit.get('entity').get("chunk_text"): hit.get('entity').get("document_name") for hit in hit_results}  # 文本内容到文档名称的映射
+
+        results = self.milvus_service.reranker(query, result_texts, top_k=top_k)
+        doc_names = [content2doc_name.get(hit.text) for hit in results if content2doc_name.get(hit.text)]
+        unique_doc_names = list(dict.fromkeys(doc_names))
+        references = unique_doc_names
+        # Step4:返回结果
+        return  [
+                    {
+                        "text": hit.text,
+                        "score": hit.score,
+                        "doc_name": content2doc_name.get(hit.text)
+                    } for hit in results
+                ], references
