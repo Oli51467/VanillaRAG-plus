@@ -1,7 +1,7 @@
 {
   "name": "frontend",
   "version": "1.0.0",
-  "description": "文档管理系统前端",
+  "description": "OrdinaryRAG",
   "type": "module",
   "scripts": {
     "dev": "vite",
