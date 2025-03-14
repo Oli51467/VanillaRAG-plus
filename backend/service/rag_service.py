@@ -21,7 +21,6 @@ class RAGService:
         self.llm_service = LLM_Service(Config)
 
     async def non_streaming_workflow(self, conversation_id: str, user_query: str) -> Dict[str, Any]:
-        needs_retrieve_chunk = True
         request_id = str(uuid.uuid4())
 
         # Step 1: 获取该对话的所有历史消息和最后一条消息
@@ -35,58 +34,44 @@ class RAGService:
         if len(history_messages) > 0:
             expanded_questions.append(last_message_content)
         logger.info("重写扩展完成...")
-    
-        # Step 3: 判断是否需要检索知识库
-        if Config.QUESTION_RETRIEVE_ENABLED:
-            logger.info("判断是否需要检索知识库...")
-            judgements = []
-            for expanded_question in expanded_questions:
-                is_relevant = await self.chat_judge_relevant(self.llm_service, last_message_content, formatted_history_messages[:-1])
-                judgements.append(is_relevant)
-            relevant_count = sum(1 for j in judgements if j)
-            needs_retrieve_chunk = relevant_count >= len(expanded_questions) / 2
-            if not needs_retrieve_chunk:
-                logger.info(f'不需要检索知识库，大模型直接生成...')
+        logger.info(f"重写扩展后的问题: {expanded_questions}")
             
         # Step 4: 检索知识库
-        if needs_retrieve_chunk:
-            logger.info("检索知识库...")
-            search_tasks = [self.document_service.retrieve(question, Config.RETRIEVE_TOPK) for question in expanded_questions]
-            task_results = await asyncio.gather(*search_tasks)
-            logger.info(f"检索知识库结果: {task_results}")
-            retrieved_chunks = []
-            for (chunks, references) in task_results:
-                retrieved_chunks.extend(chunks)
-            # 去重
-            #retrieved_chunks = self.deduplicate_chunks(retrieved_chunks) 
-            logger.info(f'检索出的文档切片: {retrieved_chunks}')
-            logger.info(f'检索出的相关文档数量: {len(retrieved_chunks)}')
-            logger.info("开始数据相关性分析...")
+        logger.info("开始检索知识库...")
+        search_tasks = [self.document_service.retrieve(question, Config.RETRIEVE_TOPK) for question in expanded_questions]
+        task_results = await asyncio.gather(*search_tasks)
+        logger.info(f"检索知识库结果: {task_results}")
+        retrieved_chunks = []
+        for (chunks, references) in task_results:
+            retrieved_chunks.extend(chunks)
+        # 去重
+        retrieved_chunks = self.deduplicate_chunks(retrieved_chunks) 
+        logger.info(f'检索出的文档切片: {retrieved_chunks}, 数量: {len(retrieved_chunks)}')
+        logger.info("开始数据相关性分析...")
 
-            # Step 5: 数据相关性分析
-            tasks = [
-                self.chunk_judge_relevant(self.llm_service, last_message_content, chunk, formatted_history_messages)
-                for chunk in retrieved_chunks
-            ]
-            relevancy_results = await asyncio.gather(*tasks)
-            hit_chunks = [chunk for chunk, is_rel in zip(retrieved_chunks, relevancy_results) if is_rel][:Config.RETRIEVE_TOPK]
-            doc_names = [chunk['doc_name'] for chunk in hit_chunks if chunk['doc_name']]
-            references = list(dict.fromkeys(doc_names))
-            logger.info(f'相关性判断后的文档切片: {hit_chunks}')
-            logger.info(f'相关性判断后的相关文档数量: {len(hit_chunks)}')
-            logger.info(f'相关性判断后的相关文档名称: {references}')    
+        # Step 5: 数据相关性分析
+        tasks = [
+            self.chunk_judge_relevant(self.llm_service, last_message_content, chunk, formatted_history_messages)
+            for chunk in retrieved_chunks
+        ]
+        relevancy_results = await asyncio.gather(*tasks)
+        hit_chunks = [chunk for chunk, is_rel in zip(retrieved_chunks, relevancy_results) if is_rel][:Config.RETRIEVE_TOPK]
+        doc_names = [chunk['doc_name'] for chunk in hit_chunks if chunk['doc_name']]
+        references = list(dict.fromkeys(doc_names))
+        logger.info(f'相关性判断后的文档切片: {hit_chunks}, 相关文档数量: {len(hit_chunks)}, 相关文档名称: {references}')    
 
         # Step 6: 调用大模型
-        if needs_retrieve_chunk and 'hit_chunks' in locals() and hit_chunks:
+        if 'hit_chunks' in locals() and hit_chunks:
             instruction, response = await self.decorate_answer(request_id, self.llm_service, hit_chunks, formatted_history_messages)
         else:
             instruction, response = await self.decorate_answer(request_id, self.llm_service, [], formatted_history_messages)
         
-        logger.info(f'final response: {response}')
+        logger.info(f'LLM response: {response}')
         return {
             'prompt': instruction,
             'response': response,
-            'documents_count': 1
+            'documents_count': len(hit_chunks) if 'hit_chunks' in locals() and hit_chunks else 0,
+            'documents_names': references if 'hit_chunks' in locals() and hit_chunks else []
         } 
     
     async def rewrite_question(self, llm_service: LLM_Service, original_question: str, question_rewrite_num: int) -> List:

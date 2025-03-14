@@ -17,12 +17,18 @@ from db.models import Document
 from utils.logger import logger
 
 
+example_docs = [
+    'information retrieval is a field of study.',
+    'information retrieval focuses on finding relevant information in large datasets.',
+    'data mining and information retrieval overlap in research.'
+]
+
 class DocumentService:
     def __init__(self, db: Session):
         # 使用M3E嵌入模型替代简单嵌入模型
         self.db = db
         self.milvus_service = MilvusService()
-        self.text_splitter = RecursiveCharacterTextSplitter(chunk_size=100, chunk_overlap=20)
+        self.text_splitter = RecursiveCharacterTextSplitter(chunk_size=80, chunk_overlap=5)
     
     def allowed_file(self, filename: str) -> bool:
         return '.' in filename and filename.rsplit('.', 1)[1].lower() in Config.ALLOWED_EXTENSIONS
@@ -130,7 +136,8 @@ class DocumentService:
         query_vectors = self.milvus_service.embedding_model.encode_query([query])
 
         # Step2:混合检索
-        hit_results = self.milvus_service.search_by_vector(query_vectors, Config.MILVUS_COLLECTION_NAME, top_k)
+        hit_results = self.milvus_service.search_by_vector(query, query_vectors, Config.MILVUS_COLLECTION_NAME, top_k)
+
         # Step3:重排序
         result_texts = [hit.get('entity').get("chunk_text") for hit in hit_results]  # 文本内容
         content2doc_name = {hit.get('entity').get("chunk_text"): hit.get('entity').get("document_name") for hit in hit_results}  # 文本内容到文档名称的映射

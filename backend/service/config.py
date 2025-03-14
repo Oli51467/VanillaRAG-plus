@@ -27,6 +27,7 @@ class Config:
 
     # 本服务的授权验证
     API_KEY = os.getenv("API_KEY")    # 本服务允许使用的API_KEY列表
+    OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
     # Milvus向量数据库
     MILVUS_SERVER = 'http://127.0.0.1:19530'                                           # Milvus服务的IP地址

@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 from typing import List
-from pymilvus import MilvusClient, MilvusException, FieldSchema, CollectionSchema, DataType, Collection, AnnSearchRequest, WeightedRanker
+from pymilvus import MilvusClient, MilvusException, DataType, AnnSearchRequest, RRFRanker, Function, FunctionType
 from pymilvus.model.hybrid import BGEM3EmbeddingFunction
 from pymilvus.model.reranker import BGERerankFunction
 from utils.logger import logger
@@ -66,16 +66,22 @@ class MilvusService:
         if self.client.has_collection(collection_name=collection_name):
             #self.client.drop_collection(collection_name)
             return
-        # 定义字段
-        fields = [
-            FieldSchema(name="document_id", dtype=DataType.VARCHAR, is_primary=True, max_length=256),  # 文档唯一标识
-            FieldSchema(name="document_name", dtype=DataType.VARCHAR, max_length=256),  # 文档名称
-            FieldSchema(name="chunk_text", dtype=DataType.VARCHAR, max_length=8192),  # 文本块内容
-            FieldSchema(name="dense_embedding", dtype=DataType.FLOAT_VECTOR, dim=dimension),       # 向量维度根据模型调整
-            FieldSchema(name="sparse_embedding", dtype=DataType.SPARSE_FLOAT_VECTOR)  # 稀疏向量
-        ]
-        # 创建 Collection
-        schema = CollectionSchema(fields, description="Document chunks")
+
+        schema = self.client.create_schema()
+        schema.add_field(field_name="document_id", datatype=DataType.VARCHAR, is_primary=True, max_length=256)
+        schema.add_field(field_name="document_name", datatype=DataType.VARCHAR, max_length=256)
+        schema.add_field(field_name="chunk_text", datatype=DataType.VARCHAR, max_length=8192, enable_analyzer=True)
+        schema.add_field(field_name="dense_embedding", datatype=DataType.FLOAT_VECTOR, dim=dimension)
+        schema.add_field(field_name="sparse_embedding", datatype=DataType.SPARSE_FLOAT_VECTOR)
+
+        bm25_function = Function(
+            name="text_bm25_emb", # Function name
+            input_field_names=["chunk_text"], # Name of the VARCHAR field containing raw text data
+            output_field_names=["sparse_embedding"], # Name of the SPARSE_FLOAT_VECTOR field reserved to store generated embeddings
+            function_type=FunctionType.BM25,
+        )
+
+        schema.add_function(bm25_function)
         
         self.client.create_collection(
             collection_name=collection_name,
@@ -91,16 +97,15 @@ class MilvusService:
             index_params.add_index(
                 field_name="dense_embedding",
                 index_name="dense_embedding_index",
-                index_type="IVF_FLAT",
+                index_type="AUTOINDEX",
                 metric_type="COSINE",
-                params={ "nlist": 128 }
             )
 
             index_params.add_index(
                 field_name="sparse_embedding",
                 index_name="sparse_embedding_index",
-                index_type="SPARSE_WAND",
-                metric_type="IP",
+                index_type="SPARSE_INVERTED_INDEX",
+                metric_type="BM25",
             )
             
             # 为向量字段创建索引
@@ -127,21 +132,12 @@ class MilvusService:
 
         # 准备数据
         data = []
-        sparse_matrix = vectors['sparse']  # 假设这是scipy.sparse矩阵
-        
         for i in range(len(chunks)):
-            # 获取当前稀疏向量行
-            row = sparse_matrix.getrow(i).tocoo()
-            
-            # 转换为Milvus支持的字典格式
-            sparse_dict = {int(col): float(val) for col, val in zip(row.col, row.data)}
-            
             data.append({
                 "document_id": str(kwargs['document_uuid']),
                 "document_name": str(kwargs['document_name']),
                 "chunk_text": chunks[i],
                 "dense_embedding": vectors['dense'][i],
-                "sparse_embedding": sparse_dict
             })
         
         try:
@@ -181,30 +177,36 @@ class MilvusService:
                 pass
             raise
 
-    def search_by_vector(self, vector, collection_name, limit=5):
+    def search_by_vector(self, query, query_vector, collection_name, limit=5):
         #先加载集合到内存
         self.client.load_collection(collection_name=collection_name, timeout=100000)
 
         # 准备混合搜索参数
-        dense_search_params = {"metric_type": "COSINE", "params": {}}
-        dense_search_req = AnnSearchRequest(
-            data=vector['dense'],
-            anns_field="dense_embedding",
-            param=dense_search_params,
-            limit=limit,
-        )
-        sparse_search_params = {"metric_type": "IP", "params": {}}
-        sparse_search_req = AnnSearchRequest(
-            data=vector['sparse'],
-            anns_field="sparse_embedding",
-            param=sparse_search_params,
-            limit=limit,
-        )
-        reranker = WeightedRanker(1.0, 1.0)
+        dense_search_params = {
+            "data": query_vector['dense'],
+            "anns_field": "dense_embedding",
+            "param": {
+                "metric_type": "COSINE",
+            },
+            "limit": limit
+        }
+        sparse_search_params = {
+            "data": [query],
+            "anns_field": "sparse_embedding",
+            "param": {
+                "metric_type": "BM25",
+                "params": {"drop_ratio_build": 0.0}
+            },
+            "limit": limit
+        }
+        dense_search_req = AnnSearchRequest(**dense_search_params)
+        sparse_search_req = AnnSearchRequest(**sparse_search_params)
+
+        ranker = RRFRanker()
         res = self.client.hybrid_search(
             collection_name=collection_name,
             reqs=[dense_search_req, sparse_search_req],
-            ranker=reranker,
+            ranker=ranker,
             limit=limit,
             output_fields=["document_id", "chunk_text", "document_name"],
         )

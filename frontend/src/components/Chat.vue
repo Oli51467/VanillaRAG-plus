@@ -211,12 +211,8 @@ export default {
                     })
                 } else {
                     messageList.forEach(msg => {
-                        let role = msg.role
-                        if (role === 'user') role = 'user'
-                        if (role === 'ai') role = 'assistant'
-
                         messages.value.push({
-                            role: role,
+                            role: msg.role,
                             content: msg.content
                         })
                     })
