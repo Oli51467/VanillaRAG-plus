@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 from typing import List
-from pymilvus import MilvusClient, MilvusException, DataType, AnnSearchRequest, RRFRanker, Function, FunctionType
+from pymilvus import MilvusClient, MilvusException, DataType, AnnSearchRequest, RRFRanker, Function, FunctionType, model
 from pymilvus.model.hybrid import BGEM3EmbeddingFunction
 from pymilvus.model.reranker import BGERerankFunction
 from utils.logger import logger
@@ -13,7 +13,6 @@ class M3EEmbeddings():
         self.embedding_function = BGEM3EmbeddingFunction(
             model_name=Config.EMBEDDING_MODEL,
             use_fp16=False,
-            batch_size=5,
             device='cpu'
         )
 
@@ -30,6 +29,7 @@ class MilvusService:
             raise ConnectionError("Failed to connect to Milvus")
         # 嵌入模型
         self.embedding_model = M3EEmbeddings()
+        self.embedding_model2 = model.DefaultEmbeddingFunction()
         # 重排序模型
         self.reranker = (
             BGERerankFunction(model_name=Config.RERANKING_MODEL, device='cpu')
@@ -64,13 +64,14 @@ class MilvusService:
     
     def create_collection(self, collection_name, dimension=None):
         if self.client.has_collection(collection_name=collection_name):
-            #self.client.drop_collection(collection_name)
-            return
+            self.client.drop_collection(collection_name)
+            #return
 
         schema = self.client.create_schema()
-        schema.add_field(field_name="document_id", datatype=DataType.VARCHAR, is_primary=True, max_length=256)
+        schema.add_field(field_name="chunk_id", datatype=DataType.VARCHAR, is_primary=True, max_length=256)
+        schema.add_field(field_name="document_id", datatype=DataType.VARCHAR, max_length=256)
         schema.add_field(field_name="document_name", datatype=DataType.VARCHAR, max_length=256)
-        schema.add_field(field_name="chunk_text", datatype=DataType.VARCHAR, max_length=8192, enable_analyzer=True)
+        schema.add_field(field_name="chunk_text", datatype=DataType.VARCHAR, max_length=1000, enable_analyzer=True)
         schema.add_field(field_name="dense_embedding", datatype=DataType.FLOAT_VECTOR, dim=dimension)
         schema.add_field(field_name="sparse_embedding", datatype=DataType.SPARSE_FLOAT_VECTOR)
 
@@ -133,8 +134,11 @@ class MilvusService:
         # 准备数据
         data = []
         for i in range(len(chunks)):
+            # 为每个块生成唯一的ID，避免主键冲突
+            chunk_id = f"{kwargs['document_uuid']}_{i}"
             data.append({
-                "document_id": str(kwargs['document_uuid']),
+                "chunk_id": chunk_id,  # 修改为块级唯一ID
+                "document_id": str(kwargs['document_uuid']),  # 保存原始文档ID
                 "document_name": str(kwargs['document_name']),
                 "chunk_text": chunks[i],
                 "dense_embedding": vectors['dense'][i],
@@ -159,7 +163,7 @@ class MilvusService:
             self.client.load_collection(collection_name=collection_name, timeout=100000)
             logger.info("已加载到内存")
             
-            # 执行删除操作
+            # 执行删除操作，使用document_id作为过滤条件
             res = self.client.delete(collection_name=collection_name, filter=f"document_id == '{document_uuid}'",timeout=100000)
             logger.info("已从集合中删除文档")
             
@@ -211,7 +215,3 @@ class MilvusService:
             output_fields=["document_id", "chunk_text", "document_name"],
         )
         return res[0]
-
-    def search_by_id(self, collection_name, id, output_fields=["id", "text"]):
-        res = self.client.get(collection_name, id, output_fields=output_fields)
-        return res
