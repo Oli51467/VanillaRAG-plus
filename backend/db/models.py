@@ -55,6 +55,7 @@ class Document(Base):
     file_name = Column(String(255), nullable=False)
     file_size = Column(Integer, nullable=False)
     file_type = Column(String(255), nullable=False)
+    file_hash = Column(String(255), nullable=False)
     upload_time = Column(DateTime(timezone=True), server_default=func.now())
 
     def to_dict(self):

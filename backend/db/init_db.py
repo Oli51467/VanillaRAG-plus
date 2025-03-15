@@ -3,7 +3,6 @@ import os
 import psycopg2
 from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
 from dotenv import load_dotenv
-from utils.logger import logger
 
 
 def init_database():
@@ -23,7 +22,7 @@ def init_database():
     }
     
     # 连接数据库
-    logger.info(f"正在连接到数据库 {db_params['host']}:{db_params['port']}...")
+    print(f"正在连接到数据库 {db_params['host']}:{db_params['port']}...")
     try:
         conn = psycopg2.connect(
             host=db_params['host'],
@@ -36,28 +35,28 @@ def init_database():
         
         # 读取SQL文件
         sql_file_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'scripts', '01-init.sql')
-        logger.info(f"正在读取SQL文件: {sql_file_path}")
+        print(f"正在读取SQL文件: {sql_file_path}")
         
         with open(sql_file_path, 'r', encoding='utf-8') as f:
             sql_script = f.read()
         
         # 执行SQL脚本
-        logger.info("正在执行SQL脚本...")
+        print("正在执行SQL脚本...")
         with conn.cursor() as cursor:
             cursor.execute(sql_script)
         
-        logger.info("SQL脚本执行成功")
+        print("SQL脚本执行成功")
         conn.close()
         return True
     
     except Exception as e:
-        logger.info(f"数据库初始化失败: {str(e)}")
+        print(f"数据库初始化失败: {str(e)}")
         return False
 
 if __name__ == "__main__":
-    logger.info("开始初始化数据库...")
+    print("开始初始化数据库...")
     success = init_database()
     if success:
-        logger.info("数据库初始化完成")
+        print("数据库初始化完成")
     else:
-        logger.info("数据库初始化失败")
+        print("数据库初始化失败")
