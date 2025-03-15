@@ -44,6 +44,9 @@ async def upload_document(file: UploadFile = File(...), db: Session = Depends(ge
      # 处理文档
     document = document_service.process_document(file)
 
+    if document is None:
+        raise HTTPException(status_code=200, detail="文件已存在")
+    
     del document_service
         
     # 返回文档信息

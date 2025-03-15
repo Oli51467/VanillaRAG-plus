@@ -40,7 +40,7 @@ cd backend
 source venv/bin/activate
 # pip install --upgrade -r requirements.txt
 echo -e "${GREEN}依赖项安装完成，启动后端服务...${NC}"
-python run.py &
+python main.py &
 BACKEND_PID=$!
 cd ..
 

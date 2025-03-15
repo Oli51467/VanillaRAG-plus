@@ -18,11 +18,13 @@ CREATE TABLE if not exists conversation_messages (
     sequence INTEGER NOT NULL
 );
 
+drop table if exists documents;
 CREATE TABLE if not exists documents (
     id UUID PRIMARY KEY,
     file_name VARCHAR(255) NOT NULL,
     file_size INTEGER NOT NULL,
     file_type VARCHAR(255) NOT NULL,
+    file_hash VARCHAR(255) NOT NULL,
     upload_time TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 

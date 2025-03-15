@@ -99,11 +99,15 @@ body {
   background-color: var(--primary-bg);
   border-right: 1px solid var(--border-color);
   box-shadow: 1px 0 3px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
 }
 
 .aside-content {
   padding: 24px 0;
   height: 100%;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 .nav-menu {
@@ -111,6 +115,7 @@ body {
   flex-direction: column;
   gap: 16px;
   padding: 0 16px;
+  overflow: hidden;
 }
 
 .nav-item {

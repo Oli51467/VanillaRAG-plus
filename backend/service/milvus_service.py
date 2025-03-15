@@ -64,8 +64,8 @@ class MilvusService:
     
     def create_collection(self, collection_name, dimension=None):
         if self.client.has_collection(collection_name=collection_name):
-            self.client.drop_collection(collection_name)
-            #return
+            #self.client.drop_collection(collection_name)
+            return
 
         schema = self.client.create_schema()
         schema.add_field(field_name="chunk_id", datatype=DataType.VARCHAR, is_primary=True, max_length=256)
@@ -215,3 +215,6 @@ class MilvusService:
             output_fields=["document_id", "chunk_text", "document_name"],
         )
         return res[0]
+    
+
+milvus_service = MilvusService()
