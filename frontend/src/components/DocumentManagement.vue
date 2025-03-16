@@ -107,7 +107,7 @@
 
             <div class="document-list" v-loading="loading">
                 <div class="document-grid">
-                    <div v-for="doc in documents" :key="doc.id" class="document-card" @click="showDeleteConfirm(doc)">
+                    <div v-for="doc in documents" :key="doc.id" class="document-card">
                         <div class="document-card-content">
                             <el-icon class="document-icon" :class="getIconColorClass(doc.file_type)">
                                 <document />
@@ -117,6 +117,18 @@
                                 <div class="document-meta">
                                     {{ formatFileSize(doc.file_size) }} · {{ formatDate(doc.upload_time) }}
                                 </div>
+                            </div>
+                            <div class="document-status">
+                                <span class="status-indicator" :class="{ 'status-disabled': !doc.enabled }"></span>
+                                <span class="status-text" :class="{ 'status-disabled': !doc.enabled }"
+                                    @click="toggleDocumentStatus(doc)">
+                                    {{ doc.enabled ? '已启用' : '未启用' }}
+                                </span>
+                                <span class="delete-icon" @click.stop="showDeleteConfirm(doc)">
+                                    <el-icon>
+                                        <Delete />
+                                    </el-icon>
+                                </span>
                             </div>
                         </div>
                     </div>
@@ -147,7 +159,9 @@ export default {
     name: 'DocumentManagement',
     components: {
         UploadFilled,
-        Document
+        Document,
+        Delete,
+        Refresh
     },
     setup() {
         const documents = ref([])
@@ -176,7 +190,12 @@ export default {
             loading.value = true
             try {
                 const response = await axios.get(`${API_BASE_URL}/list`)
-                documents.value = response.data.documents || []
+                const docs = response.data.documents || []
+                // 为每个文档添加启用状态属性
+                documents.value = docs.map(doc => ({
+                    ...doc,
+                    enabled: true // 默认为启用状态
+                }))
             } catch (error) {
                 console.error('获取文档列表失败:', error)
                 ElMessage({
@@ -187,6 +206,11 @@ export default {
             } finally {
                 loading.value = false
             }
+        }
+
+        // 切换文档启用状态
+        const toggleDocumentStatus = (doc) => {
+            doc.enabled = !doc.enabled
         }
 
         // 根据文件类型获取图标颜色类名
@@ -356,6 +380,7 @@ export default {
             formatFileSize,
             formatDate,
             getIconColorClass,
+            toggleDocumentStatus,
             Refresh,
             Delete
         }
@@ -678,7 +703,7 @@ export default {
 
 .document-grid {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(3, 1fr);
     gap: 16px;
     width: 100%;
 }
@@ -690,8 +715,8 @@ export default {
     box-shadow: var(--shadow-sm);
     transition: all 0.2s ease;
     overflow: hidden;
-    cursor: pointer;
-    /* 添加鼠标指针样式，表明可点击 */
+    cursor: default;
+    /* 修改鼠标指针为默认样式 */
 }
 
 .document-card:hover {
@@ -731,6 +756,7 @@ export default {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    max-width: calc(100% - 2ch);
 }
 
 .document-meta {
@@ -1044,5 +1070,58 @@ export default {
 
 .confirm-btn:hover {
     background-color: #b42419;
+}
+
+.document-status {
+    display: flex;
+    align-items: center;
+    margin-left: auto;
+}
+
+.status-indicator {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    background-color: #67c23a;
+    border-radius: 2px;
+    margin-right: 6px;
+}
+
+.status-text {
+    font-size: 12px;
+    color: #67c23a;
+    font-weight: 500;
+    margin-right: 10px;
+    cursor: pointer;
+    background-color: transparent;
+}
+
+.status-indicator.status-disabled {
+    background-color: #909399;
+}
+
+.status-text.status-disabled {
+    color: #606266;
+    background-color: transparent;
+}
+
+.delete-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    cursor: pointer;
+    color: #909399;
+    transition: color 0.3s;
+}
+
+.delete-icon:hover {
+    color: #d92d21;
+}
+
+.delete-icon :deep(svg) {
+    width: 14px;
+    height: 14px;
 }
 </style>
