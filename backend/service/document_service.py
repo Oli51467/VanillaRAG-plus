@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import os
 import uuid
+import re
 from datetime import datetime, timezone
 from fastapi import HTTPException
 
@@ -18,18 +19,11 @@ from utils.logger import logger
 import utils.document_util as document_util
 from service.milvus_service import milvus_service
 
-example_docs = [
-    'information retrieval is a field of study.',
-    'information retrieval focuses on finding relevant information in large datasets.',
-    'data mining and information retrieval overlap in research.'
-]
-
 class DocumentService:
     def __init__(self, db: Session):
         # 使用M3E嵌入模型替代简单嵌入模型
         self.db = db
         self.milvus_service = milvus_service
-        self.text_splitter = RecursiveCharacterTextSplitter(chunk_size=120, chunk_overlap=30)
     
     def allowed_file(self, filename: str) -> bool:
         return '.' in filename and filename.rsplit('.', 1)[1].lower() in Config.ALLOWED_EXTENSIONS
@@ -97,12 +91,16 @@ class DocumentService:
                 # 处理DOCX文件
                 text = docx2txt.process(file_path)
                 return text if text else "DOCX文件无法提取文本内容"
-            
+        
+            #替换掉连续的空格、换行符和制表符
+            text = re.sub(r'\s+', ' ', text)
+            # 去除首尾空格
+            text = text.strip()
         except Exception as e:
             logger.error(f"提取文档失败: {str(e)}")
             return f"文件处理失败: {str(e)}"
     
-    def process_document(self, file) -> Document:
+    def process_document(self, file, chunk_size, overlap_size, embedding_model) -> Document:
         try:
             # 确保上传目录存在
             os.makedirs(Config.UPLOAD_DIR, exist_ok=True)
@@ -126,17 +124,17 @@ class DocumentService:
             # 根据文档类型提取文本
             text = self.extract_text(file_path)
             logger.info(f"成功提取文档，文本长度: {len(text)}")
+
+            # 分割文本
+            self.text_splitter = RecursiveCharacterTextSplitter(chunk_size=chunk_size, chunk_overlap=overlap_size)
+            chunks = self.text_splitter.split_text(text)
+            logger.info(f"文本分割完成，共 {len(chunks)} 个块")
             
-            if text and len(text.strip()) > 10:
-                # 分割文本
-                chunks = self.text_splitter.split_text(text)
-                logger.info(f"文本分割完成，共 {len(chunks)} 个块")
-                
-                # 将文档添加到向量数据库
-                self.milvus_service.create_collection(Config.MILVUS_COLLECTION_NAME, dimension=1024)
-                # 向量化并存储
-                self.milvus_service.add_documents(chunks=chunks, collection_name=Config.MILVUS_COLLECTION_NAME, document_uuid=document_uuid, document_name=file.filename)
-                logger.info("文档已存储至向量数据库")
+            # 将文档添加到向量数据库
+            self.milvus_service.create_collection(Config.MILVUS_COLLECTION_NAME, dimension=1024)
+            # 向量化并存储
+            self.milvus_service.add_documents(chunks=chunks, collection_name=Config.MILVUS_COLLECTION_NAME, document_uuid=document_uuid, document_name=file.filename)
+            logger.info("文档已存储至向量数据库")
         except Exception as e:
             logger.error(f"文档处理失败: {str(e)}")
             raise e

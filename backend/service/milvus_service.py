@@ -71,7 +71,7 @@ class MilvusService:
         schema.add_field(field_name="chunk_id", datatype=DataType.VARCHAR, is_primary=True, max_length=256)
         schema.add_field(field_name="document_id", datatype=DataType.VARCHAR, max_length=256)
         schema.add_field(field_name="document_name", datatype=DataType.VARCHAR, max_length=256)
-        schema.add_field(field_name="chunk_text", datatype=DataType.VARCHAR, max_length=1000, enable_analyzer=True)
+        schema.add_field(field_name="chunk_text", datatype=DataType.VARCHAR, max_length=4096, enable_analyzer=True)
         schema.add_field(field_name="dense_embedding", datatype=DataType.FLOAT_VECTOR, dim=dimension)
         schema.add_field(field_name="sparse_embedding", datatype=DataType.SPARSE_FLOAT_VECTOR)
 

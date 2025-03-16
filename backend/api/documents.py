@@ -35,14 +35,14 @@ class DocumentList(BaseModel):
 
 
 @router.post("/upload", response_model=DocumentResponse)
-async def upload_document(file: UploadFile = File(...), db: Session = Depends(get_db)):
+async def upload_document(file: UploadFile = File(...), chunk_size: int = 150, overlap_size: int = 20, embedding_model: str = 'BGE M3', db: Session = Depends(get_db)):
     # 检查文件类型是否允许
     document_service = DocumentService(db)
     if not document_service.allowed_file(file.filename):
         raise HTTPException(status_code=400, detail="不支持的文件类型")
     
      # 处理文档
-    document = document_service.process_document(file)
+    document = document_service.process_document(file, chunk_size, overlap_size, embedding_model)
 
     if document is None:
         raise HTTPException(status_code=200, detail="文件已存在")

@@ -74,24 +74,48 @@
                         <div class="message-avatar">
                             <el-avatar :size="36" :icon="ChatSquare" />
                         </div>
-                        <div class="message-content">
-                            <p>👋 您好！我是您的文档助手，可以回答关于您上传文档的问题。</p>
-                            <p>请先在"文档管理"页面上传文档，然后在这里提问。</p>
+                        <div class="message-content-wrapper">
+                            <div class="message-content">
+                                <p>👋 您好！我是您的文档助手，可以回答关于您上传文档的问题。</p>
+                                <p>请先在"文档管理"页面上传文档，然后在这里提问。</p>
+                            </div>
+                            <div class="copy-button-wrapper right-bottom"
+                                @click.stop="copyMessageContent(welcomeMessage)">
+                                <el-icon class="copy-icon">
+                                    <Document />
+                                </el-icon>
+                            </div>
                         </div>
                     </div>
 
                     <!-- 消息列表 -->
                     <div v-for="(message, index) in messages" :key="index" class="message-row" :class="message.role">
-                        <template v-if="message.role === 'assistant'">
+                        <template v-if="message.role === 'assistant' || message.role === 'system'">
                             <div class="message-avatar">
                                 <el-avatar :size="36" :icon="ChatSquare" />
                             </div>
-                            <div class="message-content markdown-body" v-html="formatMessage(message.content)">
+                            <div class="message-content-wrapper">
+                                <div class="message-content markdown-body" v-html="formatMessage(message.content)">
+                                </div>
+                                <div class="copy-button-wrapper right-bottom"
+                                    @click.stop="copyMessageContent(message.content)">
+                                    <el-icon class="copy-icon">
+                                        <Document />
+                                    </el-icon>
+                                </div>
                             </div>
                         </template>
                         <template v-else>
-                            <div class="message-content">
-                                <p v-html="formatMessage(message.content)"></p>
+                            <div class="message-content-wrapper">
+                                <div class="message-content">
+                                    <p v-html="formatMessage(message.content)"></p>
+                                </div>
+                                <div class="copy-button-wrapper left-bottom"
+                                    @click.stop="copyMessageContent(message.content)">
+                                    <el-icon class="copy-icon">
+                                        <Document />
+                                    </el-icon>
+                                </div>
                             </div>
                             <div class="message-avatar">
                                 <el-avatar :size="36" :icon="User" />
@@ -104,11 +128,13 @@
                         <div class="message-avatar">
                             <el-avatar :size="36" :icon="ChatSquare" />
                         </div>
-                        <div class="message-content">
-                            <div class="typing-indicator">
-                                <span></span>
-                                <span></span>
-                                <span></span>
+                        <div class="message-content-wrapper">
+                            <div class="message-content">
+                                <div class="typing-indicator">
+                                    <span></span>
+                                    <span></span>
+                                    <span></span>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -140,9 +166,9 @@
 </template>
 
 <script>
-import { ref, onMounted, nextTick } from 'vue'
+import { ref, onMounted, nextTick, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { User, ChatSquare, Position, Loading, More, Edit, Delete, ChatDotRound } from '@element-plus/icons-vue'
+import { User, ChatSquare, Position, Loading, More, Edit, Delete, ChatDotRound, Document } from '@element-plus/icons-vue'
 import axios from 'axios'
 import MarkdownIt from 'markdown-it'
 
@@ -168,7 +194,8 @@ export default {
         More,
         Edit,
         Delete,
-        ChatDotRound
+        ChatDotRound,
+        Document
     },
     setup() {
         const userInput = ref('')
@@ -183,6 +210,9 @@ export default {
         const editDialogVisible = ref(false)
         const editingTitle = ref('')
         const editingConversationId = ref(null)
+
+        // 欢迎消息内容
+        const welcomeMessage = '👋 您好！我是您的文档助手，可以回答关于您上传文档的问题。\n请先在"文档管理"页面上传文档，然后在这里提问。'
 
         // 选择模型
         const selectModel = (modelName) => {
@@ -224,7 +254,7 @@ export default {
                     // 如果没有消息，添加一个系统欢迎消息
                     messages.value.push({
                         role: 'system',
-                        content: '👋 您好！我是您的文档助手，可以回答关于您上传文档的问题。\n请先在"文档管理"页面上传文档，然后在这里提问。'
+                        content: welcomeMessage
                     })
                 } else {
                     messageList.forEach(msg => {
@@ -457,6 +487,26 @@ export default {
             }
         }
 
+        // 复制消息内容到剪贴板
+        const copyMessageContent = (content) => {
+            navigator.clipboard.writeText(content)
+                .then(() => {
+                    ElMessage({
+                        message: '已复制到剪贴板',
+                        type: 'success',
+                        duration: 2000
+                    })
+                })
+                .catch(err => {
+                    console.error('复制失败:', err)
+                    ElMessage({
+                        message: '复制失败',
+                        type: 'error',
+                        duration: 2000
+                    })
+                })
+        }
+
         onMounted(async () => {
             // 聚焦输入框
             if (inputRef.value && inputRef.value.input) {
@@ -509,7 +559,10 @@ export default {
             More,
             Edit,
             Delete,
-            ChatDotRound
+            ChatDotRound,
+            Document,
+            copyMessageContent,
+            welcomeMessage
         }
     }
 }
@@ -717,6 +770,7 @@ export default {
     width: 100%;
     animation: fadeIn 0.3s ease;
     gap: 16px;
+    position: relative;
 }
 
 .message-row.assistant {
@@ -736,27 +790,27 @@ export default {
     align-self: flex-start;
 }
 
+.message-content-wrapper {
+    position: relative;
+    max-width: calc(100% - 80px);
+}
+
 .message-content {
     background-color: var(--secondary-bg);
     padding: 10px 12px;
-    /* 统一上下内边距 */
     border-radius: 12px;
     color: var(--text-primary);
     line-height: 1.5;
-    /* 稍微增加基础行高 */
     font-size: 15px;
-    max-width: calc(100% - 80px);
     word-break: break-word;
     overflow-wrap: break-word;
     border: 1px solid var(--border-color);
     box-shadow: var(--shadow-sm);
     margin-bottom: 0;
-    /* 移除底部外边距 */
 }
 
 .message-content p {
     margin: 0 0 4px 0;
-    /* 减小段落间距 */
 }
 
 .message-content p:last-child {
@@ -1138,5 +1192,49 @@ export default {
     border-color: var(--accent-color);
     box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.1);
     outline: none;
+}
+
+.copy-button-wrapper {
+    position: absolute;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background-color: var(--card-bg);
+    box-shadow: var(--shadow-sm);
+    border: 1px solid var(--border-color);
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+    z-index: 2;
+}
+
+.copy-button-wrapper.left-bottom {
+    bottom: 5px;
+    left: -35px;
+}
+
+.copy-button-wrapper.right-bottom {
+    bottom: 5px;
+    right: -35px;
+}
+
+.message-row:hover .copy-button-wrapper {
+    opacity: 1;
+}
+
+.copy-icon {
+    color: var(--text-secondary);
+    font-size: 16px;
+}
+
+.copy-button-wrapper:hover {
+    background-color: var(--accent-light);
+}
+
+.copy-button-wrapper:hover .copy-icon {
+    color: var(--accent-color);
 }
 </style>

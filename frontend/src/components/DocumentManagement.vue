@@ -33,9 +33,10 @@
             <!-- 左侧上传区域 -->
             <el-card class="upload-card">
                 <div class="upload-content">
-                    <el-upload class="upload-area" drag action="http://localhost:8080/api/v1/documents/upload"
+                    <el-upload class="upload-area" drag :auto-upload="false" :on-change="handleFileChange"
                         :on-success="handleUploadSuccess" :on-error="handleUploadError" :before-upload="beforeUpload"
-                        :on-progress="handleUploadProgress" :show-file-list="false" :disabled="uploading">
+                        :on-progress="handleUploadProgress" :show-file-list="false" :disabled="uploading"
+                        ref="uploadRef">
                         <div class="upload-inner compact">
                             <el-icon class="upload-icon"><upload-filled /></el-icon>
                             <div class="upload-text">
@@ -81,7 +82,7 @@
                             <el-select v-model="embeddingModel" placeholder="请选择模型" :disabled="uploading"
                                 style="width: 100%;">
                                 <el-option v-for="item in embeddingModels" :key="item.value" :label="item.label"
-                                    :value="item.value" />
+                                    :value="item.label" />
                             </el-select>
                         </div>
                         <div class="config-item half">
@@ -147,7 +148,8 @@
 </template>
 
 <script>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
+import { useStore } from 'vuex'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { UploadFilled, Document, Delete, Refresh } from '@element-plus/icons-vue'
 import axios from 'axios'
@@ -164,6 +166,7 @@ export default {
         Refresh
     },
     setup() {
+        const store = useStore()
         const documents = ref([])
         const loading = ref(false)
         const uploading = ref(false)
@@ -171,19 +174,27 @@ export default {
         const currentUploadFile = ref({})
         const deleteDialogVisible = ref(false)
         const currentDocument = ref(null)
+        const uploadRef = ref(null)
+        const fileToUpload = ref(null)
 
-        // 新增的配置项
-        const chunkSize = ref(500)
-        const overlapSize = ref(50)
-        const embeddingModel = ref('text-embedding-ada-002')
-        const topK = ref(3)
-        const embeddingModels = [
-            { value: 'text-embedding-ada-002', label: 'OpenAI Ada 002' },
-            { value: 'text-embedding-3-small', label: 'OpenAI Embedding 3 Small' },
-            { value: 'text-embedding-3-large', label: 'OpenAI Embedding 3 Large' },
-            { value: 'bge-base-zh', label: 'BGE Base (中文)' },
-            { value: 'bge-large-zh', label: 'BGE Large (中文)' }
-        ]
+        // 从Vuex store获取配置项
+        const chunkSize = computed({
+            get: () => store.getters.getChunkSize,
+            set: (value) => store.dispatch('updateChunkSize', value)
+        })
+        const overlapSize = computed({
+            get: () => store.getters.getOverlapSize,
+            set: (value) => store.dispatch('updateOverlapSize', value)
+        })
+        const embeddingModel = computed({
+            get: () => store.getters.getEmbeddingModel,
+            set: (value) => store.dispatch('updateEmbeddingModel', value)
+        })
+        const topK = computed({
+            get: () => store.getters.getTopK,
+            set: (value) => store.dispatch('updateTopK', value)
+        })
+        const embeddingModels = computed(() => store.getters.getEmbeddingModels)
 
         // 获取文档列表
         const fetchDocuments = async () => {
@@ -229,6 +240,60 @@ export default {
             }
         }
 
+        // 处理文件变更事件
+        const handleFileChange = (file) => {
+            if (file && file.raw) {
+                fileToUpload.value = file.raw
+                uploadFile(file.raw)
+            }
+        }
+
+        // 上传文件
+        const uploadFile = async (file) => {
+            if (!file) return
+
+            // 设置上传中状态和当前上传文件
+            uploading.value = true
+            uploadProgress.value = 0
+            currentUploadFile.value = file
+
+            // 从store中直接获取最新值，确保获取的是用户最新修改的值
+            const currentChunkSize = store.getters.getChunkSize
+            const currentOverlapSize = store.getters.getOverlapSize
+            const currentEmbeddingModel = store.getters.getEmbeddingModel
+
+            console.log('上传参数:', {
+                chunk_size: currentChunkSize,
+                overlap_size: currentOverlapSize,
+                embedding_model: currentEmbeddingModel
+            })
+
+            // 创建FormData对象，仅包含文件
+            const formData = new FormData()
+            formData.append('file', file)
+
+            try {
+                // 使用axios发送POST请求，将其他参数作为URL查询参数传递
+                const uploadUrl = `${API_BASE_URL}/upload?chunk_size=${currentChunkSize}&overlap_size=${currentOverlapSize}&embedding_model=${encodeURIComponent(currentEmbeddingModel)}`
+
+                const response = await axios.post(uploadUrl, formData, {
+                    headers: {
+                        'Content-Type': 'multipart/form-data'
+                    },
+                    onUploadProgress: (progressEvent) => {
+                        const percent = progressEvent.loaded / progressEvent.total
+                        uploadProgress.value = Math.round(percent * 100)
+                    }
+                })
+
+                // 调用上传成功处理函数
+                handleUploadSuccess(response.data)
+            } catch (error) {
+                // 调用上传失败处理函数
+                handleUploadError(error)
+            }
+        }
+
         // 上传前验证
         const beforeUpload = (file) => {
             const allowedTypes = ['application/pdf', 'text/plain', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document']
@@ -253,11 +318,6 @@ export default {
                 return false
             }
 
-            // 设置上传中状态和当前上传文件
-            uploading.value = true
-            uploadProgress.value = 0
-            currentUploadFile.value = file
-
             return true
         }
 
@@ -271,6 +331,11 @@ export default {
             // 重置上传状态
             uploading.value = false
             uploadProgress.value = 0
+            fileToUpload.value = null
+
+            if (uploadRef.value) {
+                uploadRef.value.clearFiles()
+            }
 
             ElMessage({
                 message: '文档上传成功',
@@ -285,6 +350,11 @@ export default {
             // 重置上传状态
             uploading.value = false
             uploadProgress.value = 0
+            fileToUpload.value = null
+
+            if (uploadRef.value) {
+                uploadRef.value.clearFiles()
+            }
 
             console.error('上传失败:', error)
             ElMessage({
@@ -382,7 +452,11 @@ export default {
             getIconColorClass,
             toggleDocumentStatus,
             Refresh,
-            Delete
+            Delete,
+            uploadRef,
+            fileToUpload,
+            handleFileChange,
+            uploadFile
         }
     }
 }
