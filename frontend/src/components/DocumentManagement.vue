@@ -120,10 +120,10 @@
                                 </div>
                             </div>
                             <div class="document-status">
-                                <span class="status-indicator" :class="{ 'status-disabled': !doc.enabled }"></span>
-                                <span class="status-text" :class="{ 'status-disabled': !doc.enabled }"
+                                <span class="status-indicator" :class="{ 'status-disabled': !doc.file_status }"></span>
+                                <span class="status-text" :class="{ 'status-disabled': !doc.file_status }"
                                     @click="toggleDocumentStatus(doc)">
-                                    {{ doc.enabled ? '已启用' : '未启用' }}
+                                    {{ doc.file_status ? '已启用' : '未启用' }}
                                 </span>
                                 <span class="delete-icon" @click.stop="showDeleteConfirm(doc)">
                                     <el-icon>
@@ -205,14 +205,13 @@ export default {
                 // 为每个文档添加启用状态属性
                 documents.value = docs.map(doc => ({
                     ...doc,
-                    enabled: true // 默认为启用状态
                 }))
             } catch (error) {
                 console.error('获取文档列表失败:', error)
                 ElMessage({
                     message: '获取文档列表失败',
                     type: 'error',
-                    duration: 3000
+                    duration: 2000
                 })
             } finally {
                 loading.value = false
@@ -220,8 +219,23 @@ export default {
         }
 
         // 切换文档启用状态
-        const toggleDocumentStatus = (doc) => {
-            doc.enabled = !doc.enabled
+        const toggleDocumentStatus = async (doc) => {
+            try {
+                const response = await axios.post(`${API_BASE_URL}/disable`, {
+                    doc_id: doc.id,
+                    doc_status: !doc.file_status
+                })
+                if (response.status === 200) {
+                    doc.file_status = !doc.file_status
+                }
+            } catch (error) {
+                console.error('切换文档状态失败:', error)
+                ElMessage({
+                    message: '切换文档状态失败',
+                    type: 'error',
+                    duration: 2000
+                })
+            }
         }
 
         // 根据文件类型获取图标颜色类名
@@ -262,12 +276,6 @@ export default {
             const currentOverlapSize = store.getters.getOverlapSize
             const currentEmbeddingModel = store.getters.getEmbeddingModel
 
-            console.log('上传参数:', {
-                chunk_size: currentChunkSize,
-                overlap_size: currentOverlapSize,
-                embedding_model: currentEmbeddingModel
-            })
-
             // 创建FormData对象，仅包含文件
             const formData = new FormData()
             formData.append('file', file)
@@ -303,7 +311,7 @@ export default {
                 ElMessage({
                     message: '只能上传PDF、TXT或DOCX文件!',
                     type: 'error',
-                    duration: 3000
+                    duration: 2000
                 })
                 return false
             }
@@ -313,7 +321,7 @@ export default {
                 ElMessage({
                     message: '文件大小不能超过100MB!',
                     type: 'error',
-                    duration: 3000
+                    duration: 2000
                 })
                 return false
             }
@@ -340,7 +348,7 @@ export default {
             ElMessage({
                 message: '文档上传成功',
                 type: 'success',
-                duration: 3000
+                duration: 2000
             })
             fetchDocuments()
         }
@@ -360,7 +368,7 @@ export default {
             ElMessage({
                 message: '文档上传失败',
                 type: 'error',
-                duration: 3000
+                duration: 2000
             })
         }
 
@@ -385,7 +393,7 @@ export default {
                 ElMessage({
                     message: '文档删除成功',
                     type: 'success',
-                    duration: 3000
+                    duration: 2000
                 })
                 fetchDocuments()
             } catch (error) {
@@ -393,7 +401,7 @@ export default {
                 ElMessage({
                     message: '删除文档失败',
                     type: 'error',
-                    duration: 3000
+                    duration: 2000
                 })
             }
         }

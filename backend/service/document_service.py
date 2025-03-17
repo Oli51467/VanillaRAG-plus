@@ -3,11 +3,10 @@ import os
 import uuid
 import re
 from datetime import datetime, timezone
-from fastapi import HTTPException
 
 from typing import List
 from sqlalchemy.orm import Session
-from sqlalchemy import select, delete, desc
+from sqlalchemy import select, delete, desc, update
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 
 import docx2txt
@@ -57,6 +56,12 @@ class DocumentService:
         stmt = select(Document).where(Document.file_hash == file_hash)
         result = self.db.execute(stmt).scalars().first()
         return result is not None
+    
+    def update_document_status(self, doc_id: str, status: int) -> bool:
+        stmt = update(Document).where(Document.id == doc_id).values(status=status)
+        result = self.db.execute(stmt)
+        self.db.commit()
+        return result.rowcount > 0
     
     def delete_document(self, doc_id: str) -> bool:
         try:

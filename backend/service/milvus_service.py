@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 from typing import List
-from pymilvus import MilvusClient, MilvusException, DataType, AnnSearchRequest, RRFRanker, Function, FunctionType, model
+from pymilvus import MilvusClient, MilvusException, DataType, AnnSearchRequest, RRFRanker, Function, FunctionType
 from pymilvus.model.hybrid import BGEM3EmbeddingFunction
 from pymilvus.model.reranker import BGERerankFunction
 from utils.logger import logger
@@ -28,8 +28,7 @@ class MilvusService:
         if not self.connect_to_milvus():
             raise ConnectionError("Failed to connect to Milvus")
         # 嵌入模型
-        self.embedding_model = M3EEmbeddings()
-        self.embedding_model2 = model.DefaultEmbeddingFunction()
+        self.embedding_model = M3EEmbeddings()  
         # 重排序模型
         self.reranker = (
             BGERerankFunction(model_name=Config.RERANKING_MODEL, device='cpu')

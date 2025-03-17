@@ -1,13 +1,14 @@
 import traceback
 from datetime import datetime
 from typing import List, Optional
-from fastapi import APIRouter, File, UploadFile, HTTPException, Depends
+from fastapi import APIRouter, File, UploadFile, HTTPException, Depends, Body
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from service.document_service import DocumentService
 from db.database import get_db
 from pydantic import BaseModel
 from utils.logger import logger
+from service.redis_service import redis_service
 
 
 router = APIRouter()
@@ -24,7 +25,10 @@ class DocumentCreate(DocumentBase):
 class DocumentResponse(DocumentBase):
     id: str
     file_type: str  # 添加文件类型字段
-    file_path: Optional[str] = None
+    file_status: int
+    file_name: str
+    upload_time: datetime
+    file_size: int
     class Config:
         from_attributes = True  # 允许直接从ORM模型转换
 
@@ -55,6 +59,7 @@ async def upload_document(file: UploadFile = File(...), chunk_size: int = 150, o
         "file_name": document.file_name,
         "upload_time": document.upload_time,
         "file_size": document.file_size,
+        "file_status": document.status,
         "file_type": document.file_type
     }
 
@@ -75,6 +80,7 @@ async def list_documents(db: Session = Depends(get_db)):
                 "upload_time": doc.upload_time,
                 "file_size": doc.file_size,
                 "file_type": doc.file_type,
+                "file_status": doc.status
             })
         del document_service
         return {"documents": documents}
@@ -100,3 +106,26 @@ async def delete_document(doc_id: str, db: Session = Depends(get_db)):
         error_detail = f"删除文档失败: {str(e)}\n{traceback.format_exc()}"
         logger.error(error_detail)
         raise HTTPException(status_code=500, detail=f"删除文档失败: {str(e)}") 
+    
+
+@router.post("/disable")
+async def disable_document(doc_id: str = Body(...), doc_status: int = Body(...), db: Session = Depends(get_db)):
+    try:
+        logger.info("disable:" + str(doc_id))
+        # 更新db
+        document_service = DocumentService(db)
+        update_status = document_service.update_document_status(doc_id, doc_status)
+        # 如果db更新成功，更新redis
+        if update_status:
+            try:
+                redis_service.update_disabled_document(doc_id)
+                return JSONResponse(content={"message": "文档禁用成功"}, status_code=200)
+            except Exception as e:
+                # rollback
+                logger.error(f"更新redis失败: {str(e)}\n{traceback.format_exc()}")
+                document_service.update_document_status(doc_id, 1 if doc_status == 0 else 0)
+                raise HTTPException(status_code=500, detail=f"禁用文档失败: {str(e)}") 
+        
+    except Exception as e:
+        logger.error(f"禁用文档失败: {str(e)}\n{traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=f"禁用文档失败: {str(e)}") 

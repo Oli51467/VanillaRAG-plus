@@ -50,3 +50,9 @@ class Config:
     # 相关性判断策略
     STRATEGY = 'llm'                                                      # 相关性判断策略，可选'llm'或'thres'，选择'llm'的判断更精准一些
     THRESHOLD = 0.85   
+
+    # Redis配置
+    REDIS_HOST = "localhost"                             # Redis主机地址
+    REDIS_PORT = 6379                                    # Redis端口
+    REDIS_PASSWORD = "hmis1234."  # Redis密码
+    REDIS_KEY = "document_disabled_key"                            # Redis键
