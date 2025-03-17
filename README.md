@@ -1,4 +1,4 @@
-# OrdinaryRAG 超普通的RAG..逐步完善中👨🏻‍💻
+# VanillaRAGPlus ..逐步完善中👨🏻‍💻
 
 这是一个基于FastAPI和Vue3的文档问答系统，支持文档上传、管理和智能问答功能，使用Milvus向量数据库进行文档存储和检索。
 
@@ -74,7 +74,7 @@
 
 ### 数据库
 
-使用Docker Compose启动PostgreSQL数据库：
+Step1：使用Docker Compose启动PostgreSQL数据库：
 
 ```bash
 cd docker
@@ -84,6 +84,36 @@ docker-compose up -d
 这将启动以下服务：
 - PostgreSQL: 存储对话历史和文档元数据
 - pgAdmin: 数据库管理工具(可选)，访问地址为http://localhost:5050
+
+Step2：安装基础中间件
+
+```shell
+// 安装Redis
+$ docker pull redis:6.2.12
+$ docker run --name redis -p 6379:6379 -d redis:6.2.12 --requirepass "52497Vr62K94qeksg82679o22kr774ee" --appendonly yes
+
+// 安装Milvus
+$ mkdir milvus && cd milvus
+$ curl -sfL https://raw.githubusercontent.com/milvus-io/milvus/master/scripts/standalone_embed.sh -o standalone_embed.sh
+$ ./standalone_embed.sh start
+
+// 建议打开Milvus的账号验证
+$ docker exec -it milvus-standalone /bin/bash
+$ apt-get update && apt-get install vim -y
+$ vim /milvus/configs/milvus.yaml                    //  将authorizationEnabled参数改为true
+$ exit
+$ docker restart milvus-standalone
+$ cd script 
+$ python3 milvus_password.py
+```
+
+Step3：下载所需模型
+
+```shell
+$ mkdir model_weight
+$ cd script
+$ python3 download_models.py
+```
 
 ### 一键启动
 

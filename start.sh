@@ -6,7 +6,7 @@ YELLOW='\033[1;33m'
 RED='\033[0;31m'
 NC='\033[0m' # No Color
 
-echo -e "${GREEN}启动OrdinaryRAG...${NC}"
+echo -e "${GREEN}启动VanillaRAGPlus...${NC}"
 
 # 检查后端目录是否存在
 if [ ! -d "backend" ]; then
@@ -58,7 +58,7 @@ cd ..
 
 # 显示访问信息
 echo -e "${GREEN}==================================${NC}"
-echo -e "${GREEN}OrdinaryRAG已启动!${NC}"
+echo -e "${GREEN}VanillaRAGPlus已启动!${NC}"
 echo -e "${GREEN}后端API: http://localhost:8080${NC}"
 echo -e "${GREEN}前端界面: http://localhost:3000${NC}"
 echo -e "${GREEN}==================================${NC}"
