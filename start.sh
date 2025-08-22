@@ -20,14 +20,23 @@ if [ ! -d "frontend" ]; then
   exit 1
 fi
 
-# 检查虚拟环境是否存在
-if [ ! -d "backend/venv" ]; then
-  echo -e "${YELLOW}警告: 找不到Python虚拟环境，正在创建...${NC}"
-  cd backend
-  python -m venv venv
-  cd ..
+# 检查conda是否安装
+if ! command -v conda &> /dev/null; then
+    echo "Conda 未安装，请先安装 Conda。"
+    exit 1
 fi
 
+# 获取conda虚拟环境列表
+envs=$(conda env list | awk '{print $1}')
+
+# 检查是否存在名为demo的虚拟环境
+if echo "$envs" | grep -q "^integrated-rag$"; then
+    echo "存在名为 integrated-rag 的虚拟环境。"
+else
+    echo "不存在名为 integrated-rag 的虚拟环境。"
+fi
+
+conda activate integrated-rag
 # 检查requirements.txt是否存在
 if [ ! -f "backend/requirements.txt" ]; then
   echo -e "${RED}错误: 找不到backend/requirements.txt文件${NC}"
@@ -37,8 +46,7 @@ fi
 # 启动后端服务
 echo -e "${GREEN}启动后端服务...${NC}"
 cd backend
-source venv/bin/activate
-# pip install --upgrade -r requirements.txt
+pip install --upgrade -r requirements.txt
 echo -e "${GREEN}依赖项安装完成，启动后端服务...${NC}"
 python main.py &
 BACKEND_PID=$!

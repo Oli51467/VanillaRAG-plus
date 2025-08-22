@@ -12,7 +12,9 @@ class RedisService:
     def get_disabled_document(self):
         # 获取self.document_uuid_key为key的Set中的所有元素
         disabled_documents = self.client.smembers(self.document_key)
-        logger.info(f"不检索的文件数量：{len(disabled_documents)}")
+        # 将set转为list
+        disabled_documents = list(disabled_documents)
+        logger.info(f"不检索的文件：{disabled_documents}")
         return disabled_documents
 
     def update_disabled_document(self, document_uuid):

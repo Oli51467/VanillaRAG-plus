@@ -1,49 +1,117 @@
-version: '3.8'
+version: "3.8"
 
 services:
+  # 后端API服务
+  api:
+    build:
+      context: ..
+      dockerfile: docker/api.Dockerfile
+    container_name: vrag_api
+    restart: always
+    ports:
+      - "8080:8080"
+    volumes:
+      - ../backend:/app
+      - ../backend/uploads:/app/uploads
+    networks:
+      - vrag_network
+    depends_on:
+      - postgres
+      - redis
+      - milvus
+    environment:
+      - DATABASE_URL=postgresql://langchain_user:langchain_password@postgres:5432/langchain_chat
+      - REDIS_URL=redis://redis:6379/0
+      - MILVUS_HOST=milvus
+      - MILVUS_PORT=19530
+
+  # 前端Web服务
+  web:
+    build:
+      context: ..
+      dockerfile: docker/web.Dockerfile
+      target: development # 开发环境使用development，生产环境使用production
+    container_name: vrag_web
+    restart: always
+    ports:
+      - "3000:3000"
+    volumes:
+      - ../frontend:/app
+      - /app/node_modules
+    networks:
+      - vrag_network
+    depends_on:
+      - api
+    environment:
+      - VITE_API_URL=http://api:8080
+
   # PostgreSQL数据库服务
   postgres:
     image: postgres:15
-    container_name: langchain_postgres
+    container_name: vrag_postgres
     restart: always
     environment:
       POSTGRES_USER: langchain_user
       POSTGRES_PASSWORD: langchain_password
       POSTGRES_DB: langchain_chat
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./init-scripts:/docker-entrypoint-initdb.d
     networks:
-      - langchain_network
+      - vrag_network
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U langchain_user -d langchain_chat"]
       interval: 10s
       timeout: 5s
       retries: 5
 
-  # pgAdmin管理工具（可选）
-  pgadmin:
-    image: dpage/pgadmin4
-    container_name: langchain_pgadmin
+  # Redis服务
+  redis:
+    image: redis:latest
+    container_name: vrag_redis
     restart: always
-    environment:
-      PGADMIN_DEFAULT_EMAIL: admin@example.com
-      PGADMIN_DEFAULT_PASSWORD: admin
     ports:
-      - "5050:80"
+      - "6379:6379"
     volumes:
-      - pgadmin_data:/var/lib/pgadmin
+      - redis_data:/data
     networks:
-      - langchain_network
-    depends_on:
-      - postgres
+      - vrag_network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Milvus向量数据库
+  milvus:
+    container_name: vrag_milvus
+    image: milvusdb/milvus:v2.5.6
+    command: ["milvus", "run", "standalone"]
+    environment:
+      ETCD_USE_EMBED: true
+      ETCD_DATA_DIR: /var/lib/milvus/etcd
+      COMMON_STORAGETYPE: local
+    ports:
+      - "19530:19530"
+      - "9091:9091"
+    volumes:
+      - milvus_data:/var/lib/milvus
+    networks:
+      - vrag_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9091/healthz"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+      start_period: 90s
 
 networks:
-  langchain_network:
+  vrag_network:
     driver: bridge
 
 volumes:
   postgres_data:
-  pgadmin_data:
+  redis_data:
+  milvus_data:

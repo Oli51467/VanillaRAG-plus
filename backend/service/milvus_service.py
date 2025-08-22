@@ -6,6 +6,7 @@ from pymilvus.model.hybrid import BGEM3EmbeddingFunction
 from pymilvus.model.reranker import BGERerankFunction
 from utils.logger import logger
 from service.config import Config
+from service.redis_service import redis_service
 
 
 class M3EEmbeddings():
@@ -159,15 +160,15 @@ class MilvusService:
                 return {"delete_count": 0}
                 
             #先加载集合到内存
-            self.client.load_collection(collection_name=collection_name, timeout=100000)
+            self.client.load_collection(collection_name=collection_name)
             logger.info("已加载到内存")
             
             # 执行删除操作，使用document_id作为过滤条件
-            res = self.client.delete(collection_name=collection_name, filter=f"document_id == '{document_uuid}'",timeout=100000)
+            res = self.client.delete(collection_name=collection_name, filter=f"document_id == '{document_uuid}'")
             logger.info("已从集合中删除文档")
             
             # 操作完成后释放集合
-            self.client.release_collection(collection_name=collection_name, timeout=100000)
+            self.client.release_collection(collection_name=collection_name)
             logger.info("集合已从内存释放")
             
             return res
@@ -181,8 +182,10 @@ class MilvusService:
             raise
 
     def search_by_vector(self, query, query_vector, collection_name, limit=5):
+        # 查询禁用的文档id
+        disabled_document_ids = redis_service.get_disabled_document()
         #先加载集合到内存
-        self.client.load_collection(collection_name=collection_name, timeout=100000)
+        self.client.load_collection(collection_name=collection_name)
 
         # 准备混合搜索参数
         dense_search_params = {
@@ -211,8 +214,10 @@ class MilvusService:
             reqs=[dense_search_req, sparse_search_req],
             ranker=ranker,
             limit=limit,
+            filter=f"document_id not in '{disabled_document_ids}'",
             output_fields=["document_id", "chunk_text", "document_name"],
         )
+        self.client.release_collection(collection_name=collection_name)
         return res[0]
     
 
